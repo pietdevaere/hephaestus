@@ -87,6 +87,7 @@ plot_bins = [i for i in range(35, 101)]
 n, bins, patches = plt.hist(spinbit_rtts, plot_bins, (35, 100), True, stacked=True, alpha = 0.7, color='y')
 n, bins, patches = plt.hist(server_rtts, plot_bins, (35, 100), True, stacked = True, alpha = 0.7, color='m')
 n, bins, patches = plt.hist(client_rtts, plot_bins, (35, 100), True, stacked = True, alpha = 0.7, color='c')
+#n, bins, patches = plt.hist(ping_rtts, plot_bins, (35, 100), True, stacked = True, alpha = 0.7, color='b')
 
 plt.xlabel('RTT [ms]')
 plt.ylabel('frequency []')
