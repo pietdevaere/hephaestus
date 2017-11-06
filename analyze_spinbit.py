@@ -94,7 +94,7 @@ plt.ylabel('frequency []')
 plt.legend(['spinbit', 'server', 'client'])
 plt.title("RTT values as reported by spinbit observer, server and client")
 
-plt.savefig("{}_rtt-hystogram.png".format(output_prefix))
+plt.savefig("{}_rtt-hystogram.pdf".format(output_prefix))
 
 ##
 ## PLOT VERSUS_TIME
@@ -109,17 +109,21 @@ datasets = (ping_rtts, spinbit_rtts, server_rtts, server_rtts_smooth,  client_rt
 legend_data = ['ping client->server', 'spinbit', 'server', 'server smooth', 'client', 'client smooth', ]
 formats = ['b', 'y', 'm', 'm', 'c', 'c']
 
-f, axarr = plt.subplots(len(datasets))
+toplot = (0, 1, 3, 5)
+f, axarr = plt.subplots(len(toplot))
 f.set_size_inches(20, 9)
 axarr[0].set_title("Different forms of RTT measurement versus time")
 
-for i in range(0, len(datasets)):
-	line = axarr[i].plot(datasets[i], formats[i])
-	axarr[i].set_ylabel("RTT [ms]")
-	axarr[i].legend([legend_data[i]], loc = 2)
-	axarr[i].set_ylim([35,100])
 
-plt.savefig("{}_time_vs_rtt.png".format(output_prefix))
+
+for plot in range(len(toplot)):
+	dataset = toplot[plot]
+	line = axarr[plot].plot(datasets[dataset], formats[dataset])
+	axarr[plot].set_ylabel("RTT [ms]")
+	axarr[plot].legend([legend_data[dataset]], loc = 2)
+	axarr[plot].set_ylim([35,100])
+
+plt.savefig("{}_time_vs_rtt.pdf".format(output_prefix))
 
 ##
 ## PLOT SMOOTH
@@ -138,7 +142,7 @@ plt.ylabel('frequency []')
 plt.legend(['spinbit', 'server smooth', 'client smooth'])
 plt.title("RTT values as reported by spinbit observer, server and client")
 
-plt.savefig("{}_rtt-hystogram-smooth.png".format(output_prefix))
+plt.savefig("{}_rtt-hystogram-smooth.pdf".format(output_prefix))
 
 
 
