@@ -58,14 +58,15 @@ controllers = []
 switches = []
 servers = []
 clients = []
+links = []
 
 switches.append(net.addSwitch('switch-1'))
 controllers.append(net.addController('controller-1'))
 servers.append(net.addHost('server-1', ip='10.0.0.1'))
 clients.append(net.addHost('client-1', ip='10.0.0.101'))
 
-net.addLink(switches[0], servers[0], **linkops)
-net.addLink(switches[0], clients[0], **linkops)
+links.append(net.addLink(switches[0], servers[0], **linkops))
+links.append(net.addLink(switches[0], clients[0], **linkops))
 
 setLogLevel('info')
 net.start()
@@ -108,8 +109,8 @@ handle = popenWrapper("switch-1_tcpdump", cmd, LOCAL)
 running_commands.append(handle)
 
 #start ping on client
-cmd = """ping -i 0.001 {target_ip}"""
-cmd = cmd.format(target_ip = servers[0].IP())
+cmd = """{SCRIPT_PATH}/ping.py {target_ip}"""
+cmd = cmd.format(target_ip = servers[0].IP(), **d)
 handle = popenWrapper("client-1_ping", cmd, clients[0])
 running_commands.append(handle)
 
@@ -144,16 +145,33 @@ def fancyWait(wait_time, steps = 50):
 		sys.stdout.flush()
 	time.sleep(wait_time)
 	sys.stdout.write('\n')
-	print('Done, shutting down mininet')
 
 #net.startTerms()
 
-fancyWait(300)
+def reconfigureLinkDelay():
+	print("Reconfiguring link delay to: {}".format(linkops["delay"]))
+	for link in links:
+		for intf in (link.intf1, link.intf2):
+			node = intf.node
+			intf_name = intf.name
+
+			cmd = "tc qdisc change dev {interface} parent 5:1 handle 10: netem delay {delay}"
+			cmd = cmd.format(interface = intf_name, delay = linkops["delay"])
+			node.cmd(cmd)
+
+
+fancyWait(20)
+
+linkops["delay"] = "15ms"
+reconfigureLinkDelay()
+
+fancyWait(20)
 
 while len(running_commands) > 0:
 	handle = running_commands.pop()
 	handle.terminate()
 
+print('Done, shutting down mininet')
 net.stop()
 
 ####################################################
