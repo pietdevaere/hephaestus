@@ -109,7 +109,8 @@ handle = popenWrapper("switch-1_tcpdump", cmd, LOCAL)
 running_commands.append(handle)
 
 #start ping on client
-cmd = """{SCRIPT_PATH}/ping.py {target_ip}"""
+#cmd = """{SCRIPT_PATH}/ping.py {target_ip}"""
+cmd = """ping -D -i 0.001 {target_ip}"""
 cmd = cmd.format(target_ip = servers[0].IP(), **d)
 handle = popenWrapper("client-1_ping", cmd, clients[0])
 running_commands.append(handle)
@@ -160,12 +161,27 @@ def reconfigureLinkDelay():
 			node.cmd(cmd)
 
 
-fancyWait(20)
+fancyWait(60)
 
 linkops["delay"] = "15ms"
 reconfigureLinkDelay()
 
-fancyWait(20)
+fancyWait(60)
+
+linkops["delay"] = "10ms"
+reconfigureLinkDelay()
+
+fancyWait(60)
+
+linkops["delay"] = "20ms"
+reconfigureLinkDelay()
+
+fancyWait(60)
+
+linkops["delay"] = "5ms"
+reconfigureLinkDelay()
+
+fancyWait(60)
 
 while len(running_commands) > 0:
 	handle = running_commands.pop()
