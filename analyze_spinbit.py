@@ -83,7 +83,7 @@ ping_file.close()
 
 
 num_buckets = len(spinbit_rtts)
-bucket_size = len(client_rtts)//num_buckets
+bucket_size = max(len(client_rtts)//num_buckets,1)
 client_rtts_smooth = list()
 for i in range(num_buckets):
 	start = i * bucket_size
@@ -96,12 +96,12 @@ for i in range(num_buckets):
 
 
 ####################################################
-## MAKE CLIENT SMOOTH
+## MAKE SERVER SMOOTH
 ####################################################
 
 
 num_buckets = len(spinbit_rtts)
-bucket_size = len(server_rtts)//num_buckets
+bucket_size = max(len(server_rtts)//num_buckets,1)
 server_rtts_smooth = list()
 for i in range(num_buckets):
 	start = i * bucket_size
@@ -316,4 +316,14 @@ plt.title("RTT values as reported by spinbit observer, server and client")
 plt.savefig("{}_rtt-hystogram-smooth.pdf".format(output_prefix))
 plt.savefig("{}_rtt-hystogram-smooth.png".format(output_prefix))
 
+####################################################
+## PLOT PING
+####################################################
 
+plt.figure()
+plt.plot(ping_times, ping_rtts, linewidth = .5)
+plt.ylabel("RTT [ms]")
+plt.xlabel("time [s]")
+plt.title("Ping based RTT measuremnt")
+plt.savefig("{}_ping_rtt.pdf".format(output_prefix))
+plt.savefig("{}_ping_rtt.png".format(output_prefix))
