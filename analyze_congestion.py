@@ -7,6 +7,10 @@ import collections
 
 minq_log_path = sys.argv[1]
 output_prefix = sys.argv[2]
+if len(sys.argv) > 3:
+	run_info = sys.argv[3]
+else:
+	run_info = ''
 
 window_times = list()
 window_sizes = list()
@@ -65,7 +69,7 @@ for plot_index in toplot:
 	plt.grid()
 	plt.ylabel("[bytes]")
 	plt.xlabel("time [s]")
-	plt.title("{} congestion overview".format(output_prefix))
+	plt.title("{} congestion overview {}".format(output_prefix, run_info))
 	plt.legend([legend_data[i] for i in toplot])
 
 plt.savefig("{}_congestion.pdf".format(output_prefix))

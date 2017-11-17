@@ -18,7 +18,7 @@ import argparse
 parser = argparse.ArgumentParser(description='Run a minq measurement experiment')
 parser.add_argument("--echo", action="store_true") # WIP
 parser.add_argument("--run-name")
-parser.add_argument("--dynamic-link")
+parser.add_argument("--dynamic-intf")
 parser.add_argument("--heartbeat", type=int)
 parser.add_argument("--file")
 parser.add_argument("--time", type=float)
@@ -37,6 +37,19 @@ d = dict(
 
 LOCAL = None
 
+class Logger(object):
+    def __init__(self, path):
+        self.terminal = sys.stdout
+        self.log = open(path, "a")
+
+    def write(self, message):
+        self.terminal.write(message)
+        self.log.write(message)
+
+    def flush(self):
+		self.terminal.flush()
+		self.log.flush()
+
 ####################################################
 ## MAKE FOLDER AND ARCHIVE CODE
 ####################################################
@@ -47,8 +60,8 @@ if args.run_name != None:
 	run_name = args.run_name
 else:
 	run_name = raw_input("Name for run: ").strip()
-	run_name = run_name.replace(' ', '-')
 if run_name:
+	run_name = run_name.replace(' ', '-')
 	outputdir = "{OUTPUT_BASE_PATH}/{timestamp}_{run_name}"
 	outputdir = outputdir.format(timestamp=timestamp, run_name=run_name, **d)
 else:
@@ -58,6 +71,8 @@ else:
 
 os.makedirs(outputdir)
 os.chdir(outputdir)
+
+sys.stdout = Logger('console_output.txt')
 
 shutil.make_archive("minq", "zip", d['MINQ_PATH'])
 shutil.make_archive("moku", "zip", d['MOKU_PATH'])
@@ -72,8 +87,8 @@ argfile.close()
 ## BUILD NETWORK
 ####################################################
 
-static_linkops = dict(bw = 100, delay = '20ms')
-dynamic_linkops = dict(bw = 100)
+static_intfops = dict(bw = 100, delay = '20ms')
+dynamic_intfops = dict(bw = 100)
 
 net = Mininet(link = TCLink)
 
@@ -88,10 +103,25 @@ controllers.append(net.addController('controller-1'))
 servers.append(net.addHost('server-1', ip='10.0.0.1'))
 clients.append(net.addHost('client-1', ip='10.0.0.101'))
 
-static_link = net.addLink(switches[0], servers[0], **static_linkops)
-links.append(static_link)
-dynamic_link = net.addLink(switches[0], clients[0], **dynamic_linkops)
-links.append(dynamic_link)
+server_link = net.addLink(switches[0], servers[0])
+links.append(server_link)
+client_link = net.addLink(switches[0], clients[0])
+links.append(client_link)
+
+dynamic_interfaces = (server_link.intf1, server_link.intf2)
+
+## configure dynamic_interfaces
+for node in net.values():
+	if isinstance(node, OVSController):
+		print("Not configuring interfaces of controller")
+		continue
+	for intf in node.intfList():
+		if intf in dynamic_interfaces:
+			print("configuring dynamic intf {} from {}".format(intf, node))
+			intf.config(**dynamic_intfops)
+		else:
+			print("configuring static intf {} from {}".format(intf, node))
+			intf.config(**static_intfops)
 
 setLogLevel('info')
 net.start()
@@ -211,15 +241,15 @@ def reconfigureLinkDelay():
 			cmd = cmd.format(interface = intf_name, delay = linkops["delay"])
 			node.cmd(cmd)
 
-def configureNetem(link, options):
-	for intf in (link.intf1, link.intf2):
+def configureNetem(interfaces, options):
+	for intf in interfaces:
 		node = intf.node
 		intf_name = intf.name
 
 		## see if there is already a configuration.
 		cmd = "tc qdisc show dev {}".format(intf)
 		tc_output = node.cmd(cmd)
-		#print("tc_output:: {}".format(tc_output))
+		print("[{}] tc_output:: {}".format(node, tc_output))
 		if tc_output.find("netem") != -1:
 			operator = "change"
 		else:
@@ -232,10 +262,15 @@ def configureNetem(link, options):
 		tc_output = node.cmd(cmd)
 		#print("tc_output:: {}".format(tc_output))
 
+		# check the configuration
+		cmd = "tc qdisc show dev {}".format(intf)
+		tc_output = node.cmd(cmd)
+		print("[{}] tc_output:: {}".format(node, tc_output))
+
 if args.time:
 	fancyWait(args.time)
-	if args.dynamic_link:
-		configureNetem(dynamic_link, args.dynamic_link)
+	if args.dynamic_intf:
+		configureNetem(dynamic_interfaces, args.dynamic_intf)
 		if not args.wait_for_client:
 			fancyWait(args.time)
 			client_handle.terminate()
@@ -250,7 +285,7 @@ if client_stdin_path:
 	cmd = "cmp {} {}"
 	cmd = cmd.format(client_stdin_path, server_stdout_path)
 	args = shlex.split(cmd)
-	if subprocess.call(args):
+	if  not subprocess.call(args):
 		print("input and output file equal!")
 
 while len(running_commands) > 0:
@@ -276,18 +311,18 @@ handle.wait()
 ## RUN ANALYZER SCRIPTS
 ####################################################
 
-cmd = """python3 {SCRIPT_PATH}/analyze_spinbit.py switch-1_moku_stdout.txt client-1_minq_stderr.txt server-1_minq_stderr.txt client-1_ping_stdout.txt client-1"""
-cmd = cmd.format(**d)
+cmd = """python3 {SCRIPT_PATH}/analyze_spinbit.py switch-1_moku_stdout.txt client-1_minq_stderr.txt server-1_minq_stderr.txt client-1_ping_stdout.txt client-1 '{title}'"""
+cmd = cmd.format(title=run_name, **d)
 handle = popenWrapper("client-1_spin_", cmd, LOCAL)
 handle.wait()
 
-cmd = """python3 {SCRIPT_PATH}/analyze_congestion.py client-1_minq_stderr.txt client-1"""
-cmd = cmd.format(**d)
+cmd = """python3 {SCRIPT_PATH}/analyze_congestion.py client-1_minq_stderr.txt client-1 '{title}'"""
+cmd = cmd.format(title=run_name, **d)
 handle = popenWrapper("client-1_congestion_", cmd, LOCAL)
 handle.wait()
 
-cmd = """python3 {SCRIPT_PATH}/analyze_congestion.py server-1_minq_stderr.txt server-1"""
-cmd = cmd.format(**d)
+cmd = """python3 {SCRIPT_PATH}/analyze_congestion.py server-1_minq_stderr.txt server-1 '{title}'"""
+cmd = cmd.format(title=run_name, **d)
 handle = popenWrapper("server-1_congestion_", cmd, LOCAL)
 handle.wait()
 

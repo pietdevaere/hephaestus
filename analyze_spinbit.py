@@ -4,12 +4,17 @@ import matplotlib.pyplot as plt
 import sys
 import math
 import collections
+import pickle
 
 moku_path = sys.argv[1]
 client_log_path = sys.argv[2]
 server_log_path = sys.argv[3]
 ping_path = sys.argv[4]
 output_prefix = sys.argv[5]
+if len(sys.argv) > 6:
+	run_info = sys.argv[6]
+else:
+	run_info = ''
 
 spinbit_rtts = list()
 spinbit_times = list()
@@ -110,6 +115,17 @@ for i in range(num_buckets):
 	server_rtts_smooth.append(smooth)
 
 ####################################################
+## SAVE PLOT
+####################################################
+
+def save_figure(figure, filename):
+	figure.savefig("{}.pdf".format(filename))
+	figure.savefig("{}.png".format(filename))
+	pickle.dump(figure, open("{}.fig.pickle".format(filename), 'wb'))
+
+
+
+####################################################
 ## PLOT HISTOGRAM
 ####################################################
 
@@ -124,10 +140,10 @@ n, bins, patches = plt.hist(client_rtts, plot_bins, (35, 100), True, stacked = T
 plt.xlabel('RTT [ms]')
 plt.ylabel('frequency []')
 plt.legend(['spinbit', 'server', 'client'])
-plt.title("RTT values as reported by spinbit observer, server and client")
+plt.title("RTT values as reported by spinbit observer, server and client {}".format(run_info))
 
-plt.savefig("{}_rtt-hystogram.pdf".format(output_prefix))
-plt.savefig("{}_rtt-hystogram.png".format(output_prefix))
+filename = "{}_rtt-hystogram".format(output_prefix)
+save_figure(plt.gcf(), filename)
 
 ####################################################
 ## PLOT VERSUS_TIME
@@ -250,7 +266,7 @@ for rtts in datasets:
 toplot = (0, 1, 2, 4)
 f, axarr = plt.subplots(len(toplot))
 f.set_size_inches(20, 9)
-axarr[0].set_title("Different forms of RTT measurement versus time")
+axarr[0].set_title("Different forms of RTT measurement versus time {}".format(run_info))
 
 for plot in range(len(toplot)):
 	dataset = toplot[plot]
@@ -266,8 +282,8 @@ for plot in range(len(toplot)):
 	axarr[plot].set_xlim([0, max_time-min_time])
 	axarr[plot].grid()
 
-plt.savefig("{}_time-vs-rtt.pdf".format(output_prefix))
-plt.savefig("{}_time-vs-rtt.png".format(output_prefix), dpi = 300)
+filename = "{}_time-vs-rtt".format(output_prefix)
+save_figure(plt.gcf(), filename)
 
 ####################################################
 ## DETAILED PLOT
@@ -276,7 +292,7 @@ plt.savefig("{}_time-vs-rtt.png".format(output_prefix), dpi = 300)
 toplot = (0, 1, 2, 4)
 f, axarr = plt.subplots(len(toplot))
 f.set_size_inches(20, 9)
-axarr[0].set_title("Different forms of RTT measurement versus time")
+axarr[0].set_title("Different forms of RTT measurement versus time {}".format(run_info))
 
 for plot in range(len(toplot)):
 	dataset = toplot[plot]
@@ -286,15 +302,15 @@ for plot in range(len(toplot)):
 		line = axarr[plot].plot(datasets[dataset], formats[dataset]+'x')
 	axarr[plot].set_ylabel("RTT [ms]")
 	axarr[plot].set_xlabel("time [s]")
-	axarr[plot].legend([legend_data[dataset]], loc = 2)
+	axarr[plot].legend([legend_data[dataset], "moving minimum"], loc = 2)
 	axarr[plot].set_ylim([35, 80])
-	axarr[plot].set_xlim([149, 151])
+	axarr[plot].set_xlim([29, 30])
 	axarr[plot].grid()
 
 	line2 = axarr[plot].plot(x_values[dataset], moving_minimum_time(datasets[dataset], x_values[dataset]), 'g', linewidth = .5)
 
-plt.savefig("{}_time-vs-rtt-detail.pdf".format(output_prefix))
-plt.savefig("{}_time-vs-rtt-detail.png".format(output_prefix), dpi = 300)
+filename = "{}_time-vs-rtt-detail".format(output_prefix)
+save_figure(plt.gcf(), filename)
 
 ####################################################
 ## PLOT SMOOTH
@@ -311,10 +327,10 @@ n, bins, patches = plt.hist(client_rtts_smooth, plot_bins, (35, 100), True, stac
 plt.xlabel('RTT [ms]')
 plt.ylabel('frequency []')
 plt.legend(['spinbit', 'server smooth', 'client smooth'])
-plt.title("RTT values as reported by spinbit observer, server and client")
+plt.title("RTT values as reported by spinbit observer, server and client {}".format(run_info))
 
-plt.savefig("{}_rtt-hystogram-smooth.pdf".format(output_prefix))
-plt.savefig("{}_rtt-hystogram-smooth.png".format(output_prefix))
+filename = "{}_rtt-hystogram-smooth".format(output_prefix)
+save_figure(plt.gcf(), filename)
 
 ####################################################
 ## PLOT PING
@@ -324,6 +340,7 @@ plt.figure()
 plt.plot(ping_times, ping_rtts, linewidth = .5)
 plt.ylabel("RTT [ms]")
 plt.xlabel("time [s]")
-plt.title("Ping based RTT measuremnt")
-plt.savefig("{}_ping_rtt.pdf".format(output_prefix))
-plt.savefig("{}_ping_rtt.png".format(output_prefix))
+plt.title("Ping based RTT measuremnt {}".format(run_info))
+
+filename = "{}_ping_rtt".format(output_prefix)
+save_figure(plt.gcf(), filename)
