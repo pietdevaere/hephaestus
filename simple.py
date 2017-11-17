@@ -13,6 +13,17 @@ import shutil
 import shlex
 import time
 import sys
+import argparse
+
+parser = argparse.ArgumentParser(description='Run a minq measurement experiment')
+parser.add_argument("--echo", action="store_true") # WIP
+parser.add_argument("--run-name")
+parser.add_argument("--dynamic-link")
+parser.add_argument("--heartbeat", type=int)
+parser.add_argument("--file")
+parser.add_argument("--time", type=float)
+parser.add_argument("--wait-for-client", action="store_true")
+args = parser.parse_args()
 
 d = dict(
 	OUTPUT_BASE_PATH = "/home/piet/eth/msc/outputs/",
@@ -32,8 +43,11 @@ LOCAL = None
 
 timestamp = datetime.datetime.now().isoformat()
 
-run_name = raw_input("Name for run: ").strip()
-run_name = run_name.replace(' ', '-')
+if args.run_name != None:
+	run_name = args.run_name
+else:
+	run_name = raw_input("Name for run: ").strip()
+	run_name = run_name.replace(' ', '-')
 if run_name:
 	outputdir = "{OUTPUT_BASE_PATH}/{timestamp}_{run_name}"
 	outputdir = outputdir.format(timestamp=timestamp, run_name=run_name, **d)
@@ -49,13 +63,17 @@ shutil.make_archive("minq", "zip", d['MINQ_PATH'])
 shutil.make_archive("moku", "zip", d['MOKU_PATH'])
 shutil.make_archive("script", "zip", d['SCRIPT_PATH'])
 
+argfile = open("arguments.txt", 'w')
+for var in vars(args):
+	argfile.write("{}: {}\n".format(var, vars(args)[var]))
+argfile.close()
+
 ####################################################
 ## BUILD NETWORK
 ####################################################
 
-linkops = dict( bw = 100,
-			    delay = '10ms'
-		      )
+static_linkops = dict(bw = 100, delay = '20ms')
+dynamic_linkops = dict(bw = 100)
 
 net = Mininet(link = TCLink)
 
@@ -70,8 +88,10 @@ controllers.append(net.addController('controller-1'))
 servers.append(net.addHost('server-1', ip='10.0.0.1'))
 clients.append(net.addHost('client-1', ip='10.0.0.101'))
 
-links.append(net.addLink(switches[0], servers[0], **linkops))
-links.append(net.addLink(switches[0], clients[0], **linkops))
+static_link = net.addLink(switches[0], servers[0], **static_linkops)
+links.append(static_link)
+dynamic_link = net.addLink(switches[0], clients[0], **dynamic_linkops)
+links.append(dynamic_link)
 
 setLogLevel('info')
 net.start()
@@ -139,6 +159,8 @@ running_commands.append(handle)
 
 # Start Minq Server
 cmd = """sudo -u {USER} MINQ_LOG={MINQ_LOG_LEVEL} /usr/local/go/bin/go run {MINQ_PATH}/bin/server/main.go -addr {server_ip}:4433 -server-name {server_ip}"""
+if args.echo:
+	cmd += " -echo"
 cmd = cmd.format(server_ip = servers[0].IP(), **d)
 server_stdout_path = "server-1_minq_stdout"
 handle = popenWrapper("server-1_minq", cmd, servers[0], stdout = server_stdout_path)
@@ -147,11 +169,15 @@ running_commands.append(handle)
 # Start Minq Client
 #cmd = """sudo -u {USER} MINQ_LOG={MINQ_LOG_LEVEL} /usr/local/go/bin/go run {MINQ_PATH}/bin/client/main.go -heartbeat 1 -addr {server_ip}:4433"""
 cmd = """sudo -u {USER} MINQ_LOG={MINQ_LOG_LEVEL} /usr/local/go/bin/go run {MINQ_PATH}/bin/client/main.go -addr {server_ip}:4433"""
+if args.heartbeat:
+	cmd += " -heartbeat {}".format(args.heartbeat)
 cmd = cmd.format(server_ip = servers[0].IP(), **d)
-client_stdin_path = "{FILES_PATH}/50MiB".format(**d)
-#client_stdin_path = None
+if args.file:
+	client_stdin_path = "{FILES_PATH}/{filename}".format(filename = args.file, **d)
+else:
+	client_stdin_path = None
 handle = popenWrapper("client-1_minq", cmd, clients[0], stdin=client_stdin_path)
-#running_commands.append(handle)
+running_commands.append(handle)
 client_handle = handle
 
 ####################################################
@@ -174,8 +200,6 @@ def fancyWait(wait_time, steps = 50):
 	time.sleep(wait_time)
 	sys.stdout.write('\n')
 
-#net.startTerms()
-
 def reconfigureLinkDelay():
 	print("Reconfiguring link delay to: {}".format(linkops["delay"]))
 	for link in links:
@@ -187,26 +211,54 @@ def reconfigureLinkDelay():
 			cmd = cmd.format(interface = intf_name, delay = linkops["delay"])
 			node.cmd(cmd)
 
-wait_time = 0
+def configureNetem(link, options):
+	for intf in (link.intf1, link.intf2):
+		node = intf.node
+		intf_name = intf.name
 
-if wait_time:
-	fancyWait(wait_time)
-	client_handle.terminate()
-else:
+		## see if there is already a configuration.
+		cmd = "tc qdisc show dev {}".format(intf)
+		tc_output = node.cmd(cmd)
+		#print("tc_output:: {}".format(tc_output))
+		if tc_output.find("netem") != -1:
+			operator = "change"
+		else:
+			operator = "add"
+
+		## add / update the netem qdisc
+		cmd = "tc qdisc {operator} dev {interface} parent 5:1 handle 10: netem {options}"
+		cmd = cmd.format(operator = operator, interface = intf_name, options = options)
+
+		tc_output = node.cmd(cmd)
+		#print("tc_output:: {}".format(tc_output))
+
+if args.time:
+	fancyWait(args.time)
+	if args.dynamic_link:
+		configureNetem(dynamic_link, args.dynamic_link)
+		if not args.wait_for_client:
+			fancyWait(args.time)
+			client_handle.terminate()
+
+if args.wait_for_client:
 	print("Now waiting for client to terminate")
 	startTime = datetime.datetime.now()
 	client_handle.wait()
 	print("Client is done :) {}".format(datetime.datetime.now() - startTime))
 
-cmd = "cmp {} {}"
-cmd = cmd.format(client_stdin_path, server_stdout_path)
-args = shlex.split(cmd)
-if subprocess.call(args):
-	print("input and output file equal!")
+if client_stdin_path:
+	cmd = "cmp {} {}"
+	cmd = cmd.format(client_stdin_path, server_stdout_path)
+	args = shlex.split(cmd)
+	if subprocess.call(args):
+		print("input and output file equal!")
 
 while len(running_commands) > 0:
 	handle = running_commands.pop()
-	handle.terminate()
+	try:
+		handle.terminate()
+	except:
+		pass
 
 print('Done, shutting down mininet')
 net.stop()
@@ -248,17 +300,17 @@ cmd = cmd.format(client_stdin_path, server_stdout_path)
 args = shlex.split(cmd)
 not_equal = subprocess.call(args)
 
-if client_stdin_path and not_equal:
-	print(">>>OUTPUT FILES ARE NOT EQUAL<<<")
-	in_size = os.path.getsize(client_stdin_path)
-	out_size = os.path.getsize(server_stdout_path)
-	print("File size original: {}, copy: {}".format(in_size, out_size))
-	open(" FAIL", 'w').close()
-elif client_stdin_path:
-	print("> output files are equal :) ")
-	open(" SUCCESS", 'w').close()
-
-os.system("rm server-1_minq_stdout")
+if client_stdin_path:
+	if client_stdin_path and not_equal:
+		print(">>>OUTPUT FILES ARE NOT EQUAL<<<")
+		in_size = os.path.getsize(client_stdin_path)
+		out_size = os.path.getsize(server_stdout_path)
+		print("File size original: {}, copy: {}".format(in_size, out_size))
+		open(" FAIL", 'w').close()
+	elif client_stdin_path:
+		print("> output files are equal :) ")
+		os.system("rm server-1_minq_stdout")
+		open(" SUCCESS", 'w').close()
 
 ####################################################
 ## CLEAN UP
