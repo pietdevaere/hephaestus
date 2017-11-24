@@ -87,7 +87,7 @@ argfile.close()
 ## BUILD NETWORK
 ####################################################
 
-static_intfops = dict(bw = 100, delay = '20ms')
+static_intfops = dict(bw = 100, delay = '10ms')
 dynamic_intfops = dict(bw = 100)
 
 net = Mininet(link = TCLink)
@@ -98,30 +98,79 @@ servers = []
 clients = []
 links = []
 
+#
+#
+#          static shaped      dynamic shaped
+#              link 0             link 1
+#                |                  |
+#                V                  V
+# +----------+       +----------+       +----------+
+# | client-0 | <---> | switch-0 | <---> | switch-1 |
+# +----------+       +----------+       +----------+
+#                                             ^
+#                                             |  <-- unshaped link
+#                                             |         link 2
+#                                             V
+#                                       +----------+
+#                                       | observer |
+#                                       | switch-2 |
+#                                       +----------+
+#                                             ^
+#                                             |  <-- unshaped link
+#                                             |         link 3
+#                                             V
+# +----------+       +----------+       +----------+
+# | server-0 | <---> | switch-4 | <---> | switch-3 |
+# +----------+       +----------+       +----------+
+#                ^                  ^
+#                |                  |
+#              link 5             link 4
+#          static shaped      dynamic shaped
+#
+
+## add switches
+switches.append(net.addSwitch('switch-0'))
 switches.append(net.addSwitch('switch-1'))
-controllers.append(net.addController('controller-1'))
-servers.append(net.addHost('server-1', ip='10.0.0.1'))
-clients.append(net.addHost('client-1', ip='10.0.0.101'))
+switches.append(net.addSwitch('switch-2'))
+switches.append(net.addSwitch('switch-3'))
+switches.append(net.addSwitch('switch-4'))
 
-server_link = net.addLink(switches[0], servers[0])
-links.append(server_link)
-client_link = net.addLink(switches[0], clients[0])
-links.append(client_link)
+observer = switches[2]
 
-dynamic_interfaces = (server_link.intf1, server_link.intf2)
+## add controler and servers
+controllers.append(net.addController('controller-0'))
+servers.append(net.addHost('server-0', ip='10.0.0.1'))
+clients.append(net.addHost('client-0', ip='10.0.0.101'))
 
-## configure dynamic_interfaces
+## add links
+links.append(net.addLink(clients[0],  switches[0]))   # link 0
+links.append(net.addLink(switches[0], switches[1]))   # link 1
+links.append(net.addLink(switches[1], switches[2]))   # link 2
+links.append(net.addLink(switches[2], switches[3]))   # link 3
+links.append(net.addLink(switches[3], switches[4]))   # link 4
+links.append(net.addLink(switches[4], servers[0]))    # link 5
+
+## configure interfaces
+
+dynamic_interfaces = (links[1].intf1, links[1].intf2, links[4].intf1, links[4].intf2)
+static_interfaces  = (links[0].intf1, links[0].intf2, links[5].intf1, links[5].intf2)
+
 for node in net.values():
 	if isinstance(node, OVSController):
 		print("Not configuring interfaces of controller")
 		continue
 	for intf in node.intfList():
+
 		if intf in dynamic_interfaces:
-			print("configuring dynamic intf {} from {}".format(intf, node))
+			print("Configuring dynamic intf {} from {}".format(intf, node))
 			intf.config(**dynamic_intfops)
-		else:
-			print("configuring static intf {} from {}".format(intf, node))
+
+		elif intf in static_interfaces:
+			print("Configuring static intf {} from {}".format(intf, node))
 			intf.config(**static_intfops)
+
+		else:
+			print("Not configuring intf {} from {}".format(intf, node))
 
 setLogLevel('info')
 net.start()
@@ -162,41 +211,41 @@ def popenWrapper(prefix, command, host = None, stdin = None, stdout = None, stde
 
 	return handle
 
-# Start tcpdump on client
+## Start tcpdump on client
 cmd = """tcpdump -i {interface} -n udp port 4433 -w {tcpdump_file}"""
-cmd = cmd.format(interface = "client-1-eth0", tcpdump_file = "client-1_tcpdump.pcap")
-handle = popenWrapper("client-1_tcmpdump", cmd, clients[0])
+cmd = cmd.format(interface = "client-0-eth0", tcpdump_file = "client-0_tcpdump.pcap")
+handle = popenWrapper("client-0_tcmpdump", cmd, clients[0])
 running_commands.append(handle)
 
-# Start tcpdump on server
+## Start tcpdump on server
 cmd = """tcpdump -i {interface} -n udp port 4433 -w {tcpdump_file}"""
-cmd = cmd.format(interface = "server-1-eth0", tcpdump_file = "server-1_tcpdump.pcap")
-handle = popenWrapper("server-1_tcmpdump", cmd, servers[0])
+cmd = cmd.format(interface = "server-0-eth0", tcpdump_file = "server-0_tcpdump.pcap")
+handle = popenWrapper("server-0_tcmpdump", cmd, servers[0])
 running_commands.append(handle)
 
-# Start tcpdump on switch
+## Start tcpdump on observer
 cmd = """tcpdump -i {interface} -n udp port 4433 -w {tcpdump_file}"""
-cmd = cmd.format(interface = "switch-1-eth1", tcpdump_file = "switch-1_tcpdump.pcap")
-handle = popenWrapper("switch-1_tcpdump", cmd, LOCAL)
+cmd = cmd.format(interface = "switch-2-eth1", tcpdump_file = "switch-2_tcpdump.pcap")
+handle = popenWrapper("switch-2_tcpdump", cmd, LOCAL)
 running_commands.append(handle)
 
-#start ping on client
+## start ping on client
 #cmd = """{SCRIPT_PATH}/ping.py {target_ip}"""
 cmd = """ping -D -i 0.001 {target_ip}"""
 cmd = cmd.format(target_ip = servers[0].IP(), **d)
-handle = popenWrapper("client-1_ping", cmd, clients[0])
+handle = popenWrapper("client-0_ping", cmd, clients[0])
 running_commands.append(handle)
 
-# Start Minq Server
+## Start Minq Server
 cmd = """sudo -u {USER} MINQ_LOG={MINQ_LOG_LEVEL} /usr/local/go/bin/go run {MINQ_PATH}/bin/server/main.go -addr {server_ip}:4433 -server-name {server_ip}"""
 if args.echo:
 	cmd += " -echo"
 cmd = cmd.format(server_ip = servers[0].IP(), **d)
-server_stdout_path = "server-1_minq_stdout"
-handle = popenWrapper("server-1_minq", cmd, servers[0], stdout = server_stdout_path)
+server_stdout_path = "server-0_minq_stdout"
+handle = popenWrapper("server-0_minq", cmd, servers[0], stdout = server_stdout_path)
 running_commands.append(handle)
 
-# Start Minq Client
+## Start Minq Client
 #cmd = """sudo -u {USER} MINQ_LOG={MINQ_LOG_LEVEL} /usr/local/go/bin/go run {MINQ_PATH}/bin/client/main.go -heartbeat 1 -addr {server_ip}:4433"""
 cmd = """sudo -u {USER} MINQ_LOG={MINQ_LOG_LEVEL} /usr/local/go/bin/go run {MINQ_PATH}/bin/client/main.go -addr {server_ip}:4433"""
 if args.heartbeat:
@@ -206,7 +255,7 @@ if args.file:
 	client_stdin_path = "{FILES_PATH}/{filename}".format(filename = args.file, **d)
 else:
 	client_stdin_path = None
-handle = popenWrapper("client-1_minq", cmd, clients[0], stdin=client_stdin_path)
+handle = popenWrapper("client-0_minq", cmd, clients[0], stdin=client_stdin_path)
 running_commands.append(handle)
 client_handle = handle
 
@@ -229,17 +278,6 @@ def fancyWait(wait_time, steps = 50):
 		sys.stdout.flush()
 	time.sleep(wait_time)
 	sys.stdout.write('\n')
-
-def reconfigureLinkDelay():
-	print("Reconfiguring link delay to: {}".format(linkops["delay"]))
-	for link in links:
-		for intf in (link.intf1, link.intf2):
-			node = intf.node
-			intf_name = intf.name
-
-			cmd = "tc qdisc change dev {interface} parent 5:1 handle 10: netem delay {delay}"
-			cmd = cmd.format(interface = intf_name, delay = linkops["delay"])
-			node.cmd(cmd)
 
 def configureNetem(interfaces, options):
 	for intf in interfaces:
@@ -303,27 +341,27 @@ net.stop()
 ####################################################
 
 cmd = """sudo -u {USER} /usr/local/go/bin/go run {MOKU_PATH}/tmoku/main.go --file {inputfile}"""
-cmd = cmd.format(inputfile = "switch-1_tcpdump.pcap", **d)
-handle = popenWrapper("switch-1_moku", cmd, LOCAL)
+cmd = cmd.format(inputfile = "switch-2_tcpdump.pcap", **d)
+handle = popenWrapper("switch-2_moku", cmd, LOCAL)
 handle.wait()
 
 ####################################################
 ## RUN ANALYZER SCRIPTS
 ####################################################
 
-cmd = """python3 {SCRIPT_PATH}/analyze_spinbit.py switch-1_moku_stdout.txt client-1_minq_stderr.txt server-1_minq_stderr.txt client-1_ping_stdout.txt client-1 '{title}'"""
+cmd = """python3 {SCRIPT_PATH}/analyze_spinbit.py switch-2_moku_stdout.txt client-0_minq_stderr.txt server-0_minq_stderr.txt client-0_ping_stdout.txt client-0 '{title}'"""
 cmd = cmd.format(title=run_name, **d)
-handle = popenWrapper("client-1_spin_", cmd, LOCAL)
+handle = popenWrapper("client-0_spin_", cmd, LOCAL)
 handle.wait()
 
-cmd = """python3 {SCRIPT_PATH}/analyze_congestion.py client-1_minq_stderr.txt client-1 '{title}'"""
+cmd = """python3 {SCRIPT_PATH}/analyze_congestion.py client-0_minq_stderr.txt client-0 '{title}'"""
 cmd = cmd.format(title=run_name, **d)
-handle = popenWrapper("client-1_congestion_", cmd, LOCAL)
+handle = popenWrapper("client-0_congestion_", cmd, LOCAL)
 handle.wait()
 
-cmd = """python3 {SCRIPT_PATH}/analyze_congestion.py server-1_minq_stderr.txt server-1 '{title}'"""
+cmd = """python3 {SCRIPT_PATH}/analyze_congestion.py server-0_minq_stderr.txt server-0 '{title}'"""
 cmd = cmd.format(title=run_name, **d)
-handle = popenWrapper("server-1_congestion_", cmd, LOCAL)
+handle = popenWrapper("server-0_congestion_", cmd, LOCAL)
 handle.wait()
 
 ####################################################
@@ -344,7 +382,7 @@ if client_stdin_path:
 		open(" FAIL", 'w').close()
 	elif client_stdin_path:
 		print("> output files are equal :) ")
-		os.system("rm server-1_minq_stdout")
+		os.system("rm server-0_minq_stdout")
 		open(" SUCCESS", 'w').close()
 
 ####################################################
@@ -352,3 +390,4 @@ if client_stdin_path:
 ####################################################
 
 os.system("chown piet:piet . -R")
+os.system("chmod -w *")

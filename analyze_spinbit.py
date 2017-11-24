@@ -16,6 +16,7 @@ if len(sys.argv) > 6:
 else:
 	run_info = ''
 
+
 spinbit_rtts = list()
 spinbit_times = list()
 
@@ -30,13 +31,24 @@ ping_times = list()
 
 moku_file = open(moku_path)
 for raw_line in moku_file:
-    if raw_line.startswith("LATENCYFLIP"):
+    if raw_line.startswith("LATENCY_FLIP:"):
+        line = raw_line.split()
+        rtt = float(line[4][:-2])
+        time = float(line[2])
+        spin_rtts.append(rtt)
+        spin_times.append(time)
+print("Number of spin transitions:", len(spin_rtts))
+moku_file.close()
+
+moku_file = open(moku_path)
+for raw_line in moku_file:
+    if raw_line.startswith("LATENCY_FLIP:") or raw_line.startswith("LATENCY_ERROR:"):
         line = raw_line.split()
         rtt = float(line[4][:-2])
         time = float(line[2])
         spinbit_rtts.append(rtt)
         spinbit_times.append(time)
-print("Number of spinbit transitions:", len(spinbit_rtts))
+print("Number of spinBIT transitions:", len(spinbit_rtts))
 moku_file.close()
 
 server_log_file = open(server_log_path)
@@ -87,7 +99,7 @@ ping_file.close()
 ####################################################
 
 
-num_buckets = len(spinbit_rtts)
+num_buckets = len(spin_rtts)
 bucket_size = max(len(client_rtts)//num_buckets,1)
 client_rtts_smooth = list()
 for i in range(num_buckets):
@@ -105,7 +117,7 @@ for i in range(num_buckets):
 ####################################################
 
 
-num_buckets = len(spinbit_rtts)
+num_buckets = len(spin_rtts)
 bucket_size = max(len(server_rtts)//num_buckets,1)
 server_rtts_smooth = list()
 for i in range(num_buckets):
@@ -132,15 +144,15 @@ def save_figure(figure, filename):
 
 plot_bins = [i for i in range(0, 101)]
 
-n, bins, patches = plt.hist(spinbit_rtts, plot_bins, (35, 100), True, stacked=True, alpha = 0.7, color='y')
+n, bins, patches = plt.hist(spin_rtts, plot_bins, (35, 100), True, stacked=True, alpha = 0.7, color='y')
 n, bins, patches = plt.hist(server_rtts, plot_bins, (35, 100), True, stacked = True, alpha = 0.7, color='m')
 n, bins, patches = plt.hist(client_rtts, plot_bins, (35, 100), True, stacked = True, alpha = 0.7, color='c')
 #n, bins, patches = plt.hist(ping_rtts, plot_bins, (35, 100), True, stacked = True, alpha = 0.7, color='b')
 
 plt.xlabel('RTT [ms]')
 plt.ylabel('frequency []')
-plt.legend(['spinbit', 'server', 'client'])
-plt.title("RTT values as reported by spinbit observer, server and client {}".format(run_info))
+plt.legend(['spin', 'server', 'client'])
+plt.title("RTT values as reported by spin observer, server and client {}".format(run_info))
 
 filename = "{}_rtt-hystogram".format(output_prefix)
 save_figure(plt.gcf(), filename)
@@ -237,10 +249,23 @@ def makeTicks(series, upper = 100):
 	return [i*interval for i in range(0, len(series))]
 
 #plot_fig = plt.figure()
-datasets = (ping_rtts,  spinbit_rtts,  server_rtts,  server_rtts_smooth,  client_rtts,  client_rtts_smooth)
-x_values = (ping_times, spinbit_times, server_times, None,                client_times, None)
-legend_data = ['ping client->server', 'spinbit', 'server', 'server smooth', 'client', 'client smooth', ]
-formats = ['b', 'y', 'm', 'm', 'c', 'c']
+datasets = (ping_rtts,
+			spin_rtts,
+			spinbit_rtts,
+			server_rtts,
+			server_rtts_smooth,
+			client_rtts,
+			client_rtts_smooth)
+
+x_values = (ping_times,
+			spin_times,
+			spinbit_times,
+			server_times,
+			None,
+			client_times,
+			None)
+legend_data = ['ping client->server', 'spin', 'server', 'server smooth', 'client', 'client smooth', ]
+formats = ['b', 'y', 'r', 'm', 'm', 'c', 'c']
 
 # find time and RTT limits, make time series relative
 
@@ -263,7 +288,7 @@ for rtts in datasets:
 		max_rtt = max(max_rtt, max(rtts))
 		min_rtt = min(min_rtt, min(rtts))
 
-toplot = (0, 1, 2, 4)
+toplot = (0, 1, 3, 5)
 f, axarr = plt.subplots(len(toplot))
 f.set_size_inches(20, 9)
 axarr[0].set_title("Different forms of RTT measurement versus time {}".format(run_info))
@@ -289,7 +314,7 @@ save_figure(plt.gcf(), filename)
 ## DETAILED PLOT
 ####################################################
 
-toplot = (0, 1, 2, 4)
+toplot = (0, 1, 3, 5)
 f, axarr = plt.subplots(len(toplot))
 f.set_size_inches(20, 9)
 axarr[0].set_title("Different forms of RTT measurement versus time {}".format(run_info))
@@ -303,8 +328,8 @@ for plot in range(len(toplot)):
 	axarr[plot].set_ylabel("RTT [ms]")
 	axarr[plot].set_xlabel("time [s]")
 	axarr[plot].legend([legend_data[dataset], "moving minimum"], loc = 2)
-	axarr[plot].set_ylim([35, 80])
-	axarr[plot].set_xlim([29, 30])
+	axarr[plot].set_ylim([35, 100])
+	axarr[plot].set_xlim([29.5, 30.5])
 	axarr[plot].grid()
 
 	line2 = axarr[plot].plot(x_values[dataset], moving_minimum_time(datasets[dataset], x_values[dataset]), 'g', linewidth = .5)
@@ -320,14 +345,14 @@ plt.figure()
 
 plot_bins = [i for i in range(0, 101)]
 
-n, bins, patches = plt.hist(spinbit_rtts, plot_bins, (35, 100), True, stacked=True, alpha = 0.7, color='y')
+n, bins, patches = plt.hist(spin_rtts, plot_bins, (35, 100), True, stacked=True, alpha = 0.7, color='y')
 n, bins, patches = plt.hist(server_rtts_smooth, plot_bins, (35, 100), True, stacked = True, alpha = 0.7, color='m')
 n, bins, patches = plt.hist(client_rtts_smooth, plot_bins, (35, 100), True, stacked = True, alpha = 0.7, color='c')
 
 plt.xlabel('RTT [ms]')
 plt.ylabel('frequency []')
-plt.legend(['spinbit', 'server smooth', 'client smooth'])
-plt.title("RTT values as reported by spinbit observer, server and client {}".format(run_info))
+plt.legend(['spin', 'server smooth', 'client smooth'])
+plt.title("RTT values as reported by spin observer, server and client {}".format(run_info))
 
 filename = "{}_rtt-hystogram-smooth".format(output_prefix)
 save_figure(plt.gcf(), filename)
@@ -341,6 +366,24 @@ plt.plot(ping_times, ping_rtts, linewidth = .5)
 plt.ylabel("RTT [ms]")
 plt.xlabel("time [s]")
 plt.title("Ping based RTT measuremnt {}".format(run_info))
+plt.grid()
 
 filename = "{}_ping_rtt".format(output_prefix)
+save_figure(plt.gcf(), filename)
+
+####################################################
+## PLOT SPINBIT VS SPIN
+####################################################
+plt.figure()
+plt.gcf().set_size_inches(20, 9)
+plt.plot(spinbit_times, spinbit_rtts, 'r', linewidth = .3)
+plt.plot(spin_times, spin_rtts, 'g', linewidth = .5)
+plt.ylabel("RTT [ms]")
+plt.xlabel("time [s]")
+plt.title("Single and dual bit spin latency measurement {}".format(run_info))
+plt.legend(['spinbit (one bit)', 'spin (two bits)'])
+plt.ylim([35, 100])
+plt.grid()
+
+filename = "{}_one_vs_two_bits_rtt".format(output_prefix)
 save_figure(plt.gcf(), filename)
