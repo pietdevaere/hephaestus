@@ -5,6 +5,7 @@ import sys
 import math
 import collections
 import pickle
+import copy
 
 moku_path = sys.argv[1]
 client_log_path = sys.argv[2]
@@ -16,39 +17,103 @@ if len(sys.argv) > 6:
 else:
 	run_info = ''
 
+all_datasets = list()
 
-spinbit_rtts = list()
-spinbit_times = list()
+data_spin = dict()
+all_datasets.append(data_spin)
+data_spin['rtts'] = list()
+data_spin['times'] = list()
+data_spin['plot_color'] = 'y'
+data_spin['legend'] = 'spin signal (two bits)'
 
-server_rtts = list()
-server_times = list()
+data_spinbit = dict()
+all_datasets.append(data_spinbit)
+data_spinbit['rtts'] = list()
+data_spinbit['times'] = list()
+data_spinbit['plot_color'] = 'y'
+data_spinbit['legend'] = 'spinbit (one bit)'
 
-client_rtts = list()
-client_times = list()
+data_spinbit_pn = dict()
+all_datasets.append(data_spinbit_pn)
+data_spinbit_pn['rtts'] = list()
+data_spinbit_pn['times'] = list()
+data_spinbit_pn['plot_color'] = 'y'
+data_spinbit_pn['legend'] = 'spinbit (one bit) with Pn filter'
 
-ping_rtts = list()
-ping_times = list()
+
+data_server = dict()
+all_datasets.append(data_server)
+data_server['rtts'] = list()
+data_server['times'] = list()
+data_server['plot_color'] = 'm'
+data_server['legend'] = 'server ACK delays'
+
+data_client = dict()
+all_datasets.append(data_client)
+data_client['rtts'] = list()
+data_client['times'] = list()
+data_client['plot_color'] = 'c'
+data_client['legend'] = 'client ACK delays'
+
+data_ping = dict()
+all_datasets.append(data_ping)
+data_ping['rtts'] = list()
+data_ping['times'] = list()
+data_ping['plot_color'] = 'b'
+data_ping['legend'] = 'ping client->server'
+
+
+####################################################
+## EXTRACT DATA FROM FILES
+####################################################
 
 moku_file = open(moku_path)
 for raw_line in moku_file:
-    if raw_line.startswith("LATENCY_FLIP:"):
-        line = raw_line.split()
-        rtt = float(line[4][:-2])
-        time = float(line[2])
-        spin_rtts.append(rtt)
-        spin_times.append(time)
-print("Number of spin transitions:", len(spin_rtts))
+	if raw_line.startswith("TWO_BIT_LATENCY_FLIP:"):
+		line = raw_line.split()
+		rtt = float(line[4][:-2])
+		time = float(line[2])
+		data_spin['rtts'].append(rtt)
+		data_spin['times'].append(time)
+	elif raw_line.startswith("TWO_BIT_LATENCY_ERROR:"):
+		line = raw_line.split()
+		rtt = float(line[4][:-2])
+		time = float(line[2])
+		if 'rejected' not in data_spin:
+			data_spin['rejected'] = list()
+		data_spin['rejected'].append((time, rtt))
+print("Number of spin transitions:", len(data_spin['rtts']),
+	  'rejected:', len(data_spin['rejected']))
 moku_file.close()
 
 moku_file = open(moku_path)
 for raw_line in moku_file:
-    if raw_line.startswith("LATENCY_FLIP:") or raw_line.startswith("LATENCY_ERROR:"):
+    if raw_line.startswith("ONE_BIT_LATENCY_FLIP:"):
         line = raw_line.split()
         rtt = float(line[4][:-2])
         time = float(line[2])
-        spinbit_rtts.append(rtt)
-        spinbit_times.append(time)
-print("Number of spinBIT transitions:", len(spinbit_rtts))
+        data_spinbit['rtts'].append(rtt)
+        data_spinbit['times'].append(time)
+print("Number of spinBIT transitions:", len(data_spinbit['rtts']))
+moku_file.close()
+
+moku_file = open(moku_path)
+for raw_line in moku_file:
+	if raw_line.startswith("ONE_BIT_PN_LATENCY_FLIP:"):
+		line = raw_line.split()
+		rtt = float(line[4][:-2])
+		time = float(line[2])
+		data_spinbit_pn['rtts'].append(rtt)
+		data_spinbit_pn['times'].append(time)
+	elif raw_line.startswith("ONE_BIT_PN_LATENCY_ERROR:"):
+		line = raw_line.split()
+		rtt = float(line[4][:-2])
+		time = float(line[2])
+		if 'rejected' not in data_spinbit_pn:
+			data_spinbit_pn['rejected'] = list()
+		data_spinbit_pn['rejected'].append((time, rtt))
+print("Number of spinBIT with Pn filter transitions:", len(data_spinbit_pn['rtts']),
+	  'rejected:', len(data_spinbit_pn['rejected']))
 moku_file.close()
 
 server_log_file = open(server_log_path)
@@ -57,9 +122,9 @@ for raw_line in server_log_file:
         line = raw_line.split()
         rtt = float(line[-1])
         time = float(line[-3])
-        server_rtts.append(rtt)
-        server_times.append(time)
-print("Number of rtts reported by server:", len(server_rtts))
+        data_server['rtts'].append(rtt)
+        data_server['times'].append(time)
+print("Number of rtts reported by server:", len(data_server['rtts']))
 server_log_file.close()
 
 client_log_file = open(client_log_path)
@@ -68,9 +133,9 @@ for raw_line in client_log_file:
         line = raw_line.split()
         rtt = float(line[-1])
         time = float(line[-3])
-        client_rtts.append(rtt)
-        client_times.append(time)
-print("Number of rtts reported by client:", len(client_rtts))
+        data_client['rtts'].append(rtt)
+        data_client['times'].append(time)
+print("Number of rtts reported by client:", len(data_client['rtts']))
 client_log_file.close()
 
 ping_file = open(ping_path)
@@ -80,86 +145,27 @@ for raw_line in ping_file:
 			line = raw_line.split()
 			rtt = float(line[2])
 			time = float(line[1])
-			ping_rtts.append(rtt)
-			ping_times.append(time)
+			data_ping['rtts'].append(rtt)
+			data_ping['times'].append(time)
 		except:
 			pass
 	if raw_line.startswith("["):
 		line = raw_line.split()
 		rtt = float(line[-2][5:])
 		time = float(line[0][1:-1])
-		ping_rtts.append(rtt)
-		ping_times.append(time)
-
-print("Number of rtts reported by ping:", len(ping_rtts))
+		data_ping['rtts'].append(rtt)
+		data_ping['times'].append(time)
+print("Number of rtts reported by ping:", len(data_ping['rtts']))
 ping_file.close()
 
 ####################################################
-## MAKE CLIENT SMOOTH
-####################################################
-
-
-num_buckets = len(spin_rtts)
-bucket_size = max(len(client_rtts)//num_buckets,1)
-client_rtts_smooth = list()
-for i in range(num_buckets):
-	start = i * bucket_size
-	end = (i+1) * bucket_size
-	if bucket_size > 0:
-		smooth = sum(client_rtts[start:end])/bucket_size
-	else:
-		smooth = 0
-	client_rtts_smooth.append(smooth)
-
-
-####################################################
-## MAKE SERVER SMOOTH
-####################################################
-
-
-num_buckets = len(spin_rtts)
-bucket_size = max(len(server_rtts)//num_buckets,1)
-server_rtts_smooth = list()
-for i in range(num_buckets):
-	start = i * bucket_size
-	end = (i+1) * bucket_size
-	smooth = sum(server_rtts[start:end])/bucket_size
-	server_rtts_smooth.append(smooth)
-
-####################################################
-## SAVE PLOT
+## HELPER FUNCTIONS
 ####################################################
 
 def save_figure(figure, filename):
 	figure.savefig("{}.pdf".format(filename))
 	figure.savefig("{}.png".format(filename))
 	pickle.dump(figure, open("{}.fig.pickle".format(filename), 'wb'))
-
-
-
-####################################################
-## PLOT HISTOGRAM
-####################################################
-
-
-plot_bins = [i for i in range(0, 101)]
-
-n, bins, patches = plt.hist(spin_rtts, plot_bins, (35, 100), True, stacked=True, alpha = 0.7, color='y')
-n, bins, patches = plt.hist(server_rtts, plot_bins, (35, 100), True, stacked = True, alpha = 0.7, color='m')
-n, bins, patches = plt.hist(client_rtts, plot_bins, (35, 100), True, stacked = True, alpha = 0.7, color='c')
-#n, bins, patches = plt.hist(ping_rtts, plot_bins, (35, 100), True, stacked = True, alpha = 0.7, color='b')
-
-plt.xlabel('RTT [ms]')
-plt.ylabel('frequency []')
-plt.legend(['spin', 'server', 'client'])
-plt.title("RTT values as reported by spin observer, server and client {}".format(run_info))
-
-filename = "{}_rtt-hystogram".format(output_prefix)
-save_figure(plt.gcf(), filename)
-
-####################################################
-## PLOT VERSUS_TIME
-####################################################
 
 def moving_minimum(serie, window_size = 10):
 	result = list()
@@ -177,46 +183,6 @@ def moving_minimum(serie, window_size = 10):
 		result.append(accepted_min)
 
 	return result
-
-#def moving_minimum_time(serie, epochs, seconds = 0.5):
-	#result = list()
-
-	#for i in range(len(serie)):
-		##print(i)
-		#window = list()
-		#base_epoch = epochs[i]
-
-		#for j in range(i, -1, -1):
-			#if epochs[j] > base_epoch - seconds:
-				#window.append(serie[j])
-			#else:
-				#break
-
-		#result.append(min(window))
-
-	#return result
-
-#def moving_minimum_time(serie, epochs, seconds = 0.5):
-	#result = list()
-	#window = list()
-	#serie_indexes = list()
-
-	#for i in range(len(serie)):
-		#window.append(serie[i])
-		#serie_indexes.append(i)
-		#base_epoch = epochs[i]
-
-		#for window_index in range(len(window)):
-			#serie_index = serie_indexes[window_index]
-			#if epochs[serie_index] >= base_epoch - seconds:
-				#break
-
-		#window = window[window_index:]
-		#serie_indexes = serie_indexes[window_index:]
-
-		#result.append(min(window))
-
-	#return result
 
 def moving_minimum_time(serie, epochs, rtts = 5):
 	result = list()
@@ -243,118 +209,123 @@ def moving_minimum_time(serie, epochs, rtts = 5):
 
 	return result
 
-
-def makeTicks(series, upper = 100):
-	interval = float(upper) / len(series)
-	return [i*interval for i in range(0, len(series))]
-
-#plot_fig = plt.figure()
-datasets = (ping_rtts,
-			spin_rtts,
-			spinbit_rtts,
-			server_rtts,
-			server_rtts_smooth,
-			client_rtts,
-			client_rtts_smooth)
-
-x_values = (ping_times,
-			spin_times,
-			spinbit_times,
-			server_times,
-			None,
-			client_times,
-			None)
-legend_data = ['ping client->server', 'spin', 'server', 'server smooth', 'client', 'client smooth', ]
-formats = ['b', 'y', 'r', 'm', 'm', 'c', 'c']
-
-# find time and RTT limits, make time series relative
+####################################################
+## MAKE TIME RELATIVE
+####################################################
 
 max_time = 0
 min_time = math.inf
-for times in x_values:
-	if times:
-		max_time = max(max_time, max(times))
-		min_time = min(min_time, min(times))
+for dataset in all_datasets:
+	if 'times' in dataset:
+		max_time = max(max_time, max(dataset['times']))
+		min_time = min(min_time, min(dataset['times']))
 
-for times in x_values:
-	if times  != None:
-		for i in range(len(times)):
-			times[i] = times[i] - min_time
+for dataset in all_datasets:
+	if 'times' in dataset:
+		for i in range(len(dataset['times'])):
+			dataset['times'][i] = dataset['times'][i] - min_time
+
+	if 'rejected' in dataset:
+		for i in range(len(dataset['rejected'])):
+			new_time = dataset['rejected'][i][0] - min_time
+			new_rtt = dataset['rejected'][i][1]
+
+			dataset['rejected'][i] = (new_time, new_rtt)
 
 max_rtt = 0
 min_rtt = math.inf
-for rtts in datasets:
+for dataset in all_datasets:
 	if rtt:
-		max_rtt = max(max_rtt, max(rtts))
-		min_rtt = min(min_rtt, min(rtts))
+		max_rtt = max(max_rtt, max(dataset['rtts']))
+		min_rtt = min(min_rtt, min(dataset['rtts']))
 
-toplot = (0, 1, 3, 5)
-f, axarr = plt.subplots(len(toplot))
+max_plot_time = max_time - min_time
+max_plot_time = min(max_plot_time, 150)
+
+####################################################
+## MAKE MOVING MINIMUMS
+####################################################
+
+def add_moving_minimums():
+	for dataset in all_datasets:
+		if 'moving_min' not in dataset:
+			dataset['moving_min'] = moving_minimum_time(dataset['rtts'], dataset['times'])
+
+add_moving_minimums()
+####################################################
+## PLOT HISTOGRAM
+####################################################
+plt.figure()
+
+to_plot = (data_spin, data_server, data_client)
+
+plot_bins = [i for i in range(0, 101)]
+legend = []
+
+for dataset in to_plot:
+	n, bins, patches = plt.hist(dataset['rtts'], plot_bins, (35, 100), True, stacked=True, alpha = 0.7, color=dataset['plot_color'])
+	legend.append(dataset['legend'])
+
+plt.xlabel('RTT [ms]')
+plt.ylabel('frequency []')
+plt.legend(legend)
+plt.title("RTT values reported by different mechanisms [{}]".format(run_info))
+
+filename = "{}_rtt-hystogram".format(output_prefix)
+save_figure(plt.gcf(), filename)
+
+####################################################
+## PLOT SPIN, CLIENT, SERVER, PING
+####################################################
+plt.figure()
+
+to_plot = (data_ping, data_spin, data_server, data_client)
+
+f, axarr = plt.subplots(len(to_plot))
 f.set_size_inches(20, 9)
-axarr[0].set_title("Different forms of RTT measurement versus time {}".format(run_info))
+axarr[0].set_title("Different forms of RTT measurement versus time [{}]".format(run_info))
 
-for plot in range(len(toplot)):
-	dataset = toplot[plot]
-	if x_values[dataset]:
-		line = axarr[plot].plot(x_values[dataset], datasets[dataset], formats[dataset], linewidth = .5)
-		line2 = axarr[plot].plot(x_values[dataset], moving_minimum_time(datasets[dataset], x_values[dataset]), 'g', linewidth = .5)
-	else:
-		line = axarr[plot].plot(datasets[dataset], formats[dataset])
-	axarr[plot].set_ylabel("RTT [ms]")
-	axarr[plot].set_xlabel("time [s]")
-	axarr[plot].legend([legend_data[dataset], "moving minimum"], loc = 2)
-	axarr[plot].set_ylim([35, 100])
-	axarr[plot].set_xlim([0, max_time-min_time])
-	axarr[plot].grid()
+for i in range(len(to_plot)):
+	dataset = to_plot[i]
+	axes = axarr[i]
+
+	line = axes.plot(dataset['times'], dataset['rtts'], dataset['plot_color'], linewidth = .5)
+	moving_min = axes.plot(dataset['times'], dataset['moving_min'], 'g', linewidth = .5)
+	axes.set_ylabel("RTT [ms]")
+	axes.set_xlabel("time [s]")
+	axes.legend([dataset['legend'], "moving minimum"], loc = 2)
+	axes.set_ylim([35, 100])
+	axes.set_xlim([0, max_time-min_time])
+	axes.grid()
 
 filename = "{}_time-vs-rtt".format(output_prefix)
 save_figure(plt.gcf(), filename)
 
 ####################################################
-## DETAILED PLOT
+## PLOT SPIN, CLIENT, SERVER, PING (DETAIL)
 ####################################################
-
-toplot = (0, 1, 3, 5)
-f, axarr = plt.subplots(len(toplot))
-f.set_size_inches(20, 9)
-axarr[0].set_title("Different forms of RTT measurement versus time {}".format(run_info))
-
-for plot in range(len(toplot)):
-	dataset = toplot[plot]
-	if x_values[dataset]:
-		line = axarr[plot].plot(x_values[dataset], datasets[dataset], formats[dataset]+'-x', markersize= 5, linewidth = .5)
-	else:
-		line = axarr[plot].plot(datasets[dataset], formats[dataset]+'x')
-	axarr[plot].set_ylabel("RTT [ms]")
-	axarr[plot].set_xlabel("time [s]")
-	axarr[plot].legend([legend_data[dataset], "moving minimum"], loc = 2)
-	axarr[plot].set_ylim([35, 100])
-	axarr[plot].set_xlim([29.5, 30.5])
-	axarr[plot].grid()
-
-	line2 = axarr[plot].plot(x_values[dataset], moving_minimum_time(datasets[dataset], x_values[dataset]), 'g', linewidth = .5)
-
-filename = "{}_time-vs-rtt-detail".format(output_prefix)
-save_figure(plt.gcf(), filename)
-
-####################################################
-## PLOT SMOOTH
-####################################################
-
 plt.figure()
 
-plot_bins = [i for i in range(0, 101)]
+to_plot = (data_ping, data_spin, data_server, data_client)
 
-n, bins, patches = plt.hist(spin_rtts, plot_bins, (35, 100), True, stacked=True, alpha = 0.7, color='y')
-n, bins, patches = plt.hist(server_rtts_smooth, plot_bins, (35, 100), True, stacked = True, alpha = 0.7, color='m')
-n, bins, patches = plt.hist(client_rtts_smooth, plot_bins, (35, 100), True, stacked = True, alpha = 0.7, color='c')
+f, axarr = plt.subplots(len(to_plot))
+f.set_size_inches(20, 9)
+axarr[0].set_title("Different forms of RTT measurement versus time [{}]".format(run_info))
 
-plt.xlabel('RTT [ms]')
-plt.ylabel('frequency []')
-plt.legend(['spin', 'server smooth', 'client smooth'])
-plt.title("RTT values as reported by spin observer, server and client {}".format(run_info))
+for i in range(len(to_plot)):
+	dataset = to_plot[i]
+	axes = axarr[i]
 
-filename = "{}_rtt-hystogram-smooth".format(output_prefix)
+	line = axes.plot(dataset['times'], dataset['rtts'], dataset['plot_color']+'-x', linewidth = .5)
+	moving_min = axes.plot(dataset['times'], moving_minimum_time(dataset['rtts'], dataset['times']), 'g', linewidth = .5)
+	axes.set_ylabel("RTT [ms]")
+	axes.set_xlabel("time [s]")
+	axes.legend([dataset['legend'], "moving minimum"], loc = 2)
+	axes.set_ylim([35, 100])
+	axes.set_xlim([29, 31])
+	axes.grid()
+
+filename = "{}_time-vs-rtt-detail".format(output_prefix)
 save_figure(plt.gcf(), filename)
 
 ####################################################
@@ -362,7 +333,7 @@ save_figure(plt.gcf(), filename)
 ####################################################
 
 plt.figure()
-plt.plot(ping_times, ping_rtts, linewidth = .5)
+plt.plot(data_ping['times'], data_ping['rtts'], linewidth = .5)
 plt.ylabel("RTT [ms]")
 plt.xlabel("time [s]")
 plt.title("Ping based RTT measuremnt {}".format(run_info))
@@ -376,8 +347,8 @@ save_figure(plt.gcf(), filename)
 ####################################################
 plt.figure()
 plt.gcf().set_size_inches(20, 9)
-plt.plot(spinbit_times, spinbit_rtts, 'r', linewidth = .3)
-plt.plot(spin_times, spin_rtts, 'g', linewidth = .5)
+plt.plot(data_spinbit['times'], data_spinbit['rtts'], data_spinbit['plot_color'], linewidth = .3)
+plt.plot(data_spin['times'], data_spin['rtts'], data_spin['plot_color'], linewidth = .3)
 plt.ylabel("RTT [ms]")
 plt.xlabel("time [s]")
 plt.title("Single and dual bit spin latency measurement {}".format(run_info))
@@ -387,3 +358,93 @@ plt.grid()
 
 filename = "{}_one_vs_two_bits_rtt".format(output_prefix)
 save_figure(plt.gcf(), filename)
+
+####################################################
+## FILTER SPINBIT FOR REORDERING
+####################################################
+
+def reject_reordered_threshold(dataset, threshold = 1):
+	output = copy.deepcopy(dataset)
+	output['times'] = list()
+	output['rtts'] = list()
+	output['rejected'] = list()
+	del(output['moving_min'])
+	for i in range(len(dataset['times'])):
+		if dataset['rtts'][i] > threshold:
+			output['times'].append(dataset['times'][i])
+			output['rtts'].append(dataset['rtts'][i])
+		else:
+			output['rejected'].append((dataset['times'][i], dataset['rtts'][i]))
+
+	return output
+
+def reject_reordered_dynamic(dataset, fraction = 0.1):
+	output = copy.deepcopy(dataset)
+	output['times'] = list()
+	output['rtts'] = list()
+	output['rejected'] = list()
+	del(output['moving_min'])
+	window = collections.deque(maxlen = 10)
+	window.append(dataset['rtts'][0])
+	rejected = 0
+
+	for i in range(len(dataset['times'])):
+		threshold = fraction * min(window)
+
+		if (dataset['rtts'][i] > threshold) or (rejected >= 5):
+			output['times'].append(dataset['times'][i])
+			output['rtts'].append(dataset['rtts'][i])
+			rejected = 0
+			window.append(dataset['rtts'][i])
+
+		else:
+			print('.', end='')
+			rejected = rejected + 1
+			output['rejected'].append((dataset['times'][i], dataset['rtts'][i]))
+
+	return output
+
+data_spinbit_threshold = reject_reordered_threshold(data_spinbit)
+data_spinbit_threshold['legend'] = 'spinbit (one bit) static threshold filtered'
+all_datasets.append(data_spinbit_threshold)
+
+data_spinbit_dynamic = reject_reordered_dynamic(data_spinbit)
+data_spinbit_dynamic['legend'] = 'spinbit (one bit) dynamic threshold filtered'
+all_datasets.append(data_spinbit_dynamic)
+
+
+add_moving_minimums()
+
+####################################################
+## COMPARISON OF REORDERING rejection
+####################################################
+plt.figure()
+
+to_plot = (data_spinbit, data_spin, data_spinbit_threshold, data_spinbit_dynamic, data_spinbit_pn)
+
+f, axarr = plt.subplots(len(to_plot))
+f.set_size_inches(20, 13)
+axarr[0].set_title("Different forms of reordering rejection [{}]".format(run_info))
+
+for i in range(len(to_plot)):
+	dataset = to_plot[i]
+	axes = axarr[i]
+
+	line = axes.plot(dataset['times'], dataset['rtts'], dataset['plot_color'], linewidth = .5)
+	if 'moving_min' in dataset:
+		moving_min = axes.plot(dataset['times'], dataset['moving_min'], 'g', linewidth = .5)
+
+	if 'rejected' in dataset:
+		rejected_times = [i[0] for i in dataset['rejected']]
+		rejected_rtt = [40 for i in rejected_times]
+		axes.plot(rejected_times, rejected_rtt, 'rx')
+	axes.set_ylabel("RTT [ms]")
+	axes.set_xlabel("time [s]")
+	axes.legend([dataset['legend'], "moving minimum", 'rejected samples'], loc = 2)
+	axes.set_ylim([35, 100])
+	axes.set_xlim([0, max_time-min_time])
+	axes.grid()
+
+filename = "{}_reorder-rejection-rtt".format(output_prefix)
+save_figure(plt.gcf(), filename)
+
