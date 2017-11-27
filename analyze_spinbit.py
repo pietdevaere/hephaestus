@@ -96,10 +96,10 @@ class Time:
 		return str(self.epoch)
 
 	def __eq__(self, other):
-		return self.epoch == other.epoch
+		return float(self) == float(other)
 
 	def __lt__(self, other):
-		return self.epoch < other.epoch
+		return float(self) < float(other)
 
 
 ####################################################
