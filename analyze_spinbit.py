@@ -6,6 +6,7 @@ import math
 import collections
 import pickle
 import copy
+import functools
 
 moku_path = sys.argv[1]
 client_log_path = sys.argv[2]
@@ -25,6 +26,7 @@ data_spin['rtts'] = list()
 data_spin['times'] = list()
 data_spin['plot_color'] = 'y'
 data_spin['legend'] = 'spin signal (two bits)'
+data_spin['rejected'] = list()
 
 data_spinbit = dict()
 all_datasets.append(data_spinbit)
@@ -32,6 +34,8 @@ data_spinbit['rtts'] = list()
 data_spinbit['times'] = list()
 data_spinbit['plot_color'] = 'y'
 data_spinbit['legend'] = 'spinbit (one bit)'
+data_spinbit['rejected'] = list()
+
 
 data_spinbit_pn = dict()
 all_datasets.append(data_spinbit_pn)
@@ -39,6 +43,7 @@ data_spinbit_pn['rtts'] = list()
 data_spinbit_pn['times'] = list()
 data_spinbit_pn['plot_color'] = 'y'
 data_spinbit_pn['legend'] = 'spinbit (one bit) with Pn filter'
+data_spinbit_pn['rejected'] = list()
 
 
 data_server = dict()
@@ -47,6 +52,7 @@ data_server['rtts'] = list()
 data_server['times'] = list()
 data_server['plot_color'] = 'm'
 data_server['legend'] = 'server ACK delays'
+data_server['rejected'] = list()
 
 data_client = dict()
 all_datasets.append(data_client)
@@ -54,6 +60,7 @@ data_client['rtts'] = list()
 data_client['times'] = list()
 data_client['plot_color'] = 'c'
 data_client['legend'] = 'client ACK delays'
+data_client['rejected'] = list()
 
 data_ping = dict()
 all_datasets.append(data_ping)
@@ -61,26 +68,66 @@ data_ping['rtts'] = list()
 data_ping['times'] = list()
 data_ping['plot_color'] = 'b'
 data_ping['legend'] = 'ping client->server'
+data_ping['rejected'] = list()
+
+server_invalid_periods = list()
+client_invalid_periods = list()
+rtt_invalid_periods = list()
+client_invalid_time = None
+server_invalid_time = None
+
+####################################################
+## TIME CLASS to facilitate relative times
+####################################################
+@functools.total_ordering
+class Time:
+	zeroTime = None
+
+	def __init__(self, epoch):
+		self.epoch = float(epoch)
+
+	def __float__(self):
+		if Time.zeroTime:
+			return float(self.epoch - Time.zeroTime)
+		else:
+			return float(self.epoch)
+
+	def __repr__(self):
+		return str(self.epoch)
+
+	def __eq__(self, other):
+		return self.epoch == other.epoch
+
+	def __lt__(self, other):
+		return self.epoch < other.epoch
 
 
 ####################################################
 ## EXTRACT DATA FROM FILES
 ####################################################
 
+#moku_file = open(moku_path)
+#for raw_line in moku_file:
+#	if raw_line.startswith("LATENCY_VALID_CLIENT:"):
+#		line = raw_line.split()
+#		time = float(line[2])
+#		client_valid = bool(line[-1])
+#		if client_invalid_time == None and client_valid == false:
+#			client_invalid_time = time
+#moku_file.close()
+
 moku_file = open(moku_path)
 for raw_line in moku_file:
 	if raw_line.startswith("TWO_BIT_LATENCY_FLIP:"):
 		line = raw_line.split()
 		rtt = float(line[4][:-2])
-		time = float(line[2])
+		time = Time(line[2])
 		data_spin['rtts'].append(rtt)
 		data_spin['times'].append(time)
 	elif raw_line.startswith("TWO_BIT_LATENCY_ERROR:"):
 		line = raw_line.split()
 		rtt = float(line[4][:-2])
-		time = float(line[2])
-		if 'rejected' not in data_spin:
-			data_spin['rejected'] = list()
+		time = Time(line[2])
 		data_spin['rejected'].append((time, rtt))
 print("Number of spin transitions:", len(data_spin['rtts']),
 	  'rejected:', len(data_spin['rejected']))
@@ -91,7 +138,7 @@ for raw_line in moku_file:
     if raw_line.startswith("ONE_BIT_LATENCY_FLIP:"):
         line = raw_line.split()
         rtt = float(line[4][:-2])
-        time = float(line[2])
+        time = Time(line[2])
         data_spinbit['rtts'].append(rtt)
         data_spinbit['times'].append(time)
 print("Number of spinBIT transitions:", len(data_spinbit['rtts']))
@@ -102,15 +149,13 @@ for raw_line in moku_file:
 	if raw_line.startswith("ONE_BIT_PN_LATENCY_FLIP:"):
 		line = raw_line.split()
 		rtt = float(line[4][:-2])
-		time = float(line[2])
+		time = Time(line[2])
 		data_spinbit_pn['rtts'].append(rtt)
 		data_spinbit_pn['times'].append(time)
 	elif raw_line.startswith("ONE_BIT_PN_LATENCY_ERROR:"):
 		line = raw_line.split()
 		rtt = float(line[4][:-2])
-		time = float(line[2])
-		if 'rejected' not in data_spinbit_pn:
-			data_spinbit_pn['rejected'] = list()
+		time = Time(line[2])
 		data_spinbit_pn['rejected'].append((time, rtt))
 print("Number of spinBIT with Pn filter transitions:", len(data_spinbit_pn['rtts']),
 	  'rejected:', len(data_spinbit_pn['rejected']))
@@ -121,7 +166,7 @@ for raw_line in server_log_file:
     if raw_line.find("ACK_DELAY") != -1:
         line = raw_line.split()
         rtt = float(line[-1])
-        time = float(line[-3])
+        time = Time(line[-3])
         data_server['rtts'].append(rtt)
         data_server['times'].append(time)
 print("Number of rtts reported by server:", len(data_server['rtts']))
@@ -132,7 +177,7 @@ for raw_line in client_log_file:
     if raw_line.find("ACK_DELAY") != -1:
         line = raw_line.split()
         rtt = float(line[-1])
-        time = float(line[-3])
+        time = Time(line[-3])
         data_client['rtts'].append(rtt)
         data_client['times'].append(time)
 print("Number of rtts reported by client:", len(data_client['rtts']))
@@ -144,7 +189,7 @@ for raw_line in ping_file:
 		try:
 			line = raw_line.split()
 			rtt = float(line[2])
-			time = float(line[1])
+			time = Time(line[1])
 			data_ping['rtts'].append(rtt)
 			data_ping['times'].append(time)
 		except:
@@ -152,7 +197,7 @@ for raw_line in ping_file:
 	if raw_line.startswith("["):
 		line = raw_line.split()
 		rtt = float(line[-2][5:])
-		time = float(line[0][1:-1])
+		time = Time(line[0][1:-1])
 		data_ping['rtts'].append(rtt)
 		data_ping['times'].append(time)
 print("Number of rtts reported by ping:", len(data_ping['rtts']))
@@ -198,7 +243,7 @@ def moving_minimum_time(serie, epochs, rtts = 5):
 
 		for window_index in range(len(window)):
 			serie_index = serie_indexes[window_index]
-			if epochs[serie_index] >= base_epoch - seconds:
+			if float(epochs[serie_index]) >= float(base_epoch) - seconds:
 				break
 
 		window = window[window_index:]
@@ -217,20 +262,22 @@ max_time = 0
 min_time = math.inf
 for dataset in all_datasets:
 	if 'times' in dataset:
-		max_time = max(max_time, max(dataset['times']))
-		min_time = min(min_time, min(dataset['times']))
+		max_time = max(max_time, float(max(dataset['times'])))
+		min_time = min(min_time, float(min(dataset['times'])))
 
-for dataset in all_datasets:
-	if 'times' in dataset:
-		for i in range(len(dataset['times'])):
-			dataset['times'][i] = dataset['times'][i] - min_time
+Time.zeroTime = min_time
 
-	if 'rejected' in dataset:
-		for i in range(len(dataset['rejected'])):
-			new_time = dataset['rejected'][i][0] - min_time
-			new_rtt = dataset['rejected'][i][1]
+#for dataset in all_datasets:
+	#if 'times' in dataset:
+		#for i in range(len(dataset['times'])):
+			#dataset['times'][i] = dataset['times'][i] - min_time
 
-			dataset['rejected'][i] = (new_time, new_rtt)
+	#if 'rejected' in dataset:
+		#for i in range(len(dataset['rejected'])):
+			#new_time = dataset['rejected'][i][0] - min_time
+			#new_rtt = dataset['rejected'][i][1]
+
+			#dataset['rejected'][i] = (new_time, new_rtt)
 
 max_rtt = 0
 min_rtt = math.inf
