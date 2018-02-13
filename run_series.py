@@ -1,7 +1,16 @@
 #!/usr/bin/python2
 import os
+import sys
 
+if os.geteuid() != 0:
+	print("I am not root, goodnight")
+	sys.exit()
+else:
+	print("Bow before me for I am root")
+
+os.system("killall ovs-testcontroller")
 os.system("mn -c")
+
 
 netem_options = (
 				 "delay 10ms",
@@ -26,7 +35,15 @@ for netem_option in netem_options:
 	print('#'*80)
 	print('Now moving to netem option: {}'.format(netem_option))
 	print('#'*80)
-	cmd = "/home/piet/eth/msc/hephaestus/simple.py --run-name '{netem}' --dynamic-intf '{netem}' --file 100MiB --time 30 --wait-for-client"
+	cmd = "/home/piet/eth/msc/hephaestus/simple_for_vpp.py --run-name '{netem}' --dynamic-intf '{netem}' --file 1GiB --time 60"
+	#cmd += " --no-baseline"
 	#cmd = "/home/piet/eth/msc/hephaestus/simple.py --run-name '{netem}' --dynamic-intf '{netem}' --time 30 --heartbeat 100"
 	cmd = cmd.format(netem = netem_option)
 	os.system(cmd)
+
+print('#'*80)
+print('Now moving to bursty_traffic: {}'.format(netem_option))
+print('#'*80)
+cmd = "/home/piet/eth/msc/hephaestus/simple_for_vpp.py --run-name 'bursty_traffic' --time 60 --traffic-gen '--cycles 100 --heartbeat 80'"
+#cmd += " --no-baseline"
+os.system(cmd)

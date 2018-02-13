@@ -14,8 +14,10 @@ import shlex
 import time
 import sys
 import argparse
+import random
+import string
 
-parser = argparse.ArgumentParser(description='Run a minq measurement experiment')
+parser = argparse.ArgumentParser(description='Run a minq measurement experiment, creating a trace for VPP analysis')
 parser.add_argument("--echo", action="store_true") # WIP
 parser.add_argument("--run-name")
 parser.add_argument("--dynamic-intf")
@@ -28,7 +30,7 @@ parser.add_argument("--traffic-gen")
 args = parser.parse_args()
 
 d = dict(
-	OUTPUT_BASE_PATH = "/home/piet/eth/msc/outputs/",
+	OUTPUT_BASE_PATH = "/home/piet/eth/msc/vpp-data/",
 	MINQ_PATH = "/home/piet/go/src/github.com/ekr/minq/",
 	MOKU_PATH = "/home/piet/go/src/github.com/britram/mokumokuren/",
 	SCRIPT_PATH = "/home/piet/eth/msc/hephaestus/",
@@ -85,7 +87,9 @@ def configureNetem(interfaces, options):
 ## MAKE FOLDER AND ARCHIVE CODE
 ####################################################
 
-timestamp = datetime.datetime.now().isoformat()
+d['timestamp'] = datetime.datetime.now().isoformat()
+d['epoch'] = int(time.time())
+d['randID'] = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(5))
 
 if args.run_name != None:
 	run_name = args.run_name
@@ -93,15 +97,27 @@ else:
 	run_name = raw_input("Name for run: ").strip()
 if run_name:
 	run_name = run_name.replace(' ', '-')
-	outputdir = "{OUTPUT_BASE_PATH}/{timestamp}_{run_name}"
-	outputdir = outputdir.format(timestamp=timestamp, run_name=run_name, **d)
+	outputdir = "{OUTPUT_BASE_PATH}/{epoch}-{randID}_{run_name}"
+	outputdir = outputdir.format(run_name=run_name, **d)
 else:
-	outputdir = "{OUTPUT_BASE_PATH}/nameless_runs/{timestamp}"
-	outputdir = outputdir.format(timestamp=timestamp, **d)
+	outputdir = "{OUTPUT_BASE_PATH}/nameless_runs/{epoch}-{randID}"
+	outputdir = outputdir.format(run_name=run_name, **d)
 
 
 os.makedirs(outputdir)
 os.chdir(outputdir)
+
+randID_file = open("randID", 'w')
+randID_file.write(d['randID'])
+randID_file.close()
+
+epoch_file = open("epoch", 'w')
+epoch_file.write(str(d['epoch']))
+epoch_file.close()
+
+timestamp_file = open("timestamp", 'w')
+timestamp_file.write(d['timestamp'])
+timestamp_file.close()
 
 sys.stdout = Logger('console_output.txt')
 sys.stderr = sys.stdout
@@ -357,61 +373,61 @@ while len(running_commands) > 0:
 print('Done, shutting down mininet')
 net.stop()
 
-####################################################
-## RUN MOKUMOKUREN
-####################################################
+#####################################################
+### RUN MOKUMOKUREN
+#####################################################
 
-cmd = """sudo -u {USER} /usr/local/go/bin/go run {MOKU_PATH}/tmoku/main.go --file {inputfile}"""
-cmd = cmd.format(inputfile = "switch-2_tcpdump.pcap", **d)
-handle = popenWrapper("switch-2_moku", cmd, LOCAL)
-handle.wait()
+#cmd = """sudo -u {USER} /usr/local/go/bin/go run {MOKU_PATH}/tmoku/main.go --file {inputfile}"""
+#cmd = cmd.format(inputfile = "switch-2_tcpdump.pcap", **d)
+#handle = popenWrapper("switch-2_moku", cmd, LOCAL)
+#handle.wait()
 
-####################################################
-## RUN ANALYZER SCRIPTS
-####################################################
+#####################################################
+### RUN ANALYZER SCRIPTS
+#####################################################
 
-cmd = """python3 {SCRIPT_PATH}/analyze_spinbit.py switch-2_moku_stdout.txt client-0_minq_stderr.txt server-0_minq_stderr.txt client-0_ping_stdout.txt client-0 '{title}'"""
-cmd = cmd.format(title=run_name, **d)
-handle = popenWrapper("client-0_spin_", cmd, LOCAL)
-handle.wait()
+#cmd = """python3 {SCRIPT_PATH}/analyze_spinbit.py switch-2_moku_stdout.txt client-0_minq_stderr.txt server-0_minq_stderr.txt client-0_ping_stdout.txt client-0 '{title}'"""
+#cmd = cmd.format(title=run_name, **d)
+#handle = popenWrapper("client-0_spin_", cmd, LOCAL)
+#handle.wait()
 
-cmd = """python3 {SCRIPT_PATH}/analyze_congestion.py client-0_minq_stderr.txt client-0 '{title}'"""
-cmd = cmd.format(title=run_name, **d)
-handle = popenWrapper("client-0_congestion_", cmd, LOCAL)
-handle.wait()
+#cmd = """python3 {SCRIPT_PATH}/analyze_congestion.py client-0_minq_stderr.txt client-0 '{title}'"""
+#cmd = cmd.format(title=run_name, **d)
+#handle = popenWrapper("client-0_congestion_", cmd, LOCAL)
+#handle.wait()
 
-cmd = """python3 {SCRIPT_PATH}/analyze_congestion.py server-0_minq_stderr.txt server-0 '{title}'"""
-cmd = cmd.format(title=run_name, **d)
-handle = popenWrapper("server-0_congestion_", cmd, LOCAL)
-handle.wait()
+#cmd = """python3 {SCRIPT_PATH}/analyze_congestion.py server-0_minq_stderr.txt server-0 '{title}'"""
+#cmd = cmd.format(title=run_name, **d)
+#handle = popenWrapper("server-0_congestion_", cmd, LOCAL)
+#handle.wait()
 
-####################################################
-## VERIFY THAT FILE WAS SUCESSFULLY COPIED
-####################################################
+#####################################################
+### VERIFY THAT FILE WAS SUCESSFULLY COPIED
+#####################################################
 
-if type(client_stdin) == str:
-	if args.wait_for_client:
-		cmd = "cmp {} {}"
-		cmd = cmd.format(client_stdin, server_stdout_path)
-		cmd_args = shlex.split(cmd)
-		not_equal = subprocess.call(cmd_args)
+#if type(client_stdin) == str:
+	#if args.wait_for_client:
+		#cmd = "cmp {} {}"
+		#cmd = cmd.format(client_stdin, server_stdout_path)
+		#cmd_args = shlex.split(cmd)
+		#not_equal = subprocess.call(cmd_args)
 
-		if client_stdin and not_equal:
-			print(">>>OUTPUT FILES ARE NOT EQUAL<<<")
-			in_size = os.path.getsize(client_stdin)
-			out_size = os.path.getsize(server_stdout_path)
-			print("File size original: {}, copy: {}".format(in_size, out_size))
-			open(" FAIL", 'w').close()
-		elif client_stdin:
-			print("> output files are equal :) ")
-			os.system("rm server-0_minq_stdout")
-			open(" SUCCESS", 'w').close()
-	else:
-		os.system("rm server-0_minq_stdout")
+		#if client_stdin and not_equal:
+			#print(">>>OUTPUT FILES ARE NOT EQUAL<<<")
+			#in_size = os.path.getsize(client_stdin)
+			#out_size = os.path.getsize(server_stdout_path)
+			#print("File size original: {}, copy: {}".format(in_size, out_size))
+			#open(" FAIL", 'w').close()
+		#elif client_stdin:
+			#print("> output files are equal :) ")
+			#os.system("rm server-0_minq_stdout")
+			#open(" SUCCESS", 'w').close()
+	#else:
+		#os.system("rm server-0_minq_stdout")
 
-####################################################
-## CLEAN UP
-####################################################
+#####################################################
+### CLEAN UP
+#####################################################
 
 os.system("chown piet:piet . -R")
 os.system("chmod -w *")
