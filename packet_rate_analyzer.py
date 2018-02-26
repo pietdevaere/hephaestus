@@ -68,7 +68,7 @@ for packet in pcap_packets:
 	else:
 		post60_count += 1
 
-with open(PLOT_DIR + "count.txt") as outfile:
+with open(PLOT_DIR + "count.txt", 'w') as outfile:
 	infostring = "pre/post 60 count: {}/{}".format(pre60_count, post60_count)
 	print(infostring)
 	outfile.write(infostring + '\n')
