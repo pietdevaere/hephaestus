@@ -6,7 +6,7 @@ import math
 import collections
 
 minq_log_path = sys.argv[1]
-output_prefix = sys.argv[2]
+#output_prefix = sys.argv[2]
 if len(sys.argv) > 3:
 	run_info = sys.argv[3]
 else:
@@ -33,7 +33,7 @@ for raw_line in minq_log_file:
 		inflight_sizes.append(size)
 		inflight_times.append(time)
 
-print("Number of BYTES_IN_FLIGHT reports:", len(window_sizes))
+print("Number of BYTES_IN_FLIGHT reports:", len(inflight_sizes))
 print("Number of CONGESTION_WINDOW reports:", len(window_sizes))
 minq_log_file.close()
 
@@ -69,8 +69,20 @@ for plot_index in toplot:
 	plt.grid()
 	plt.ylabel("[bytes]")
 	plt.xlabel("time [s]")
-	plt.title("{} congestion overview {}".format(output_prefix, run_info))
+	#plt.title("{} congestion overview {}".format(output_prefix, run_info))
 	plt.legend([legend_data[i] for i in toplot])
 
-plt.savefig("{}_congestion.pdf".format(output_prefix))
-plt.savefig("{}_congestion.png".format(output_prefix), dpi = 300)
+#plt.savefig("{}_congestion.pdf".format(output_prefix))
+#plt.savefig("{}_congestion.png".format(output_prefix), dpi = 300)
+
+if len(inflight_sizes):
+	print("Inflight data (max/mean/min): {}/{}/{}".format(
+		max(inflight_sizes), sum(inflight_sizes)//len(inflight_sizes), min(inflight_sizes)))
+else:
+	print("Inflight data (max/mean/min): -/-/-")
+
+if len(window_sizes):
+	print("Window size (max/mean/min): {}/{}/{}".format(
+		max(window_sizes), sum(window_sizes)//len(window_sizes), min(window_sizes)))
+else:
+	print("Window size (max/mean/min): -/-/-")

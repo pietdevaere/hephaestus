@@ -27,6 +27,8 @@ parser.add_argument("--file")
 parser.add_argument("--time", type=float)
 parser.add_argument("--wait-for-client", action="store_true")
 parser.add_argument("--traffic-gen")
+parser.add_argument("--one-direction", action="store_true")
+parser.add_argument("--tcp", action="store_true")
 args = parser.parse_args()
 
 d = dict(
@@ -200,7 +202,11 @@ links.append(net.addLink(switches[4], servers[0]))    # link 5
 
 ## configure interfaces
 
-dynamic_interfaces = (links[1].intf1, links[1].intf2, links[4].intf1, links[4].intf2)
+if args.one_direction:
+	dynamic_interfaces = (links[1].intf1, links[4].intf1)
+else:
+	dynamic_interfaces = (links[1].intf1, links[1].intf2, links[4].intf1, links[4].intf2)
+
 static_interfaces  = (links[0].intf1, links[0].intf2, links[5].intf1, links[5].intf2)
 
 for node in net.values():
@@ -287,8 +293,13 @@ cmd = cmd.format(target_ip = servers[0].IP(), **d)
 handle = popenWrapper("client-0_ping", cmd, clients[0])
 running_commands.append(handle)
 
-## Start Minq Server
-cmd = """sudo -u {USER} MINQ_LOG={MINQ_LOG_LEVEL} /usr/local/go/bin/go run {MINQ_PATH}/bin/server/main.go -addr {server_ip}:4433 -server-name {server_ip}"""
+
+## Start Minq | TCP Server
+if not args.tcp:
+	cmd = """sudo -u {USER} MINQ_LOG={MINQ_LOG_LEVEL} /usr/local/go/bin/go run {MINQ_PATH}/bin/server/main.go -addr {server_ip}:4433 -server-name {server_ip}"""
+else:
+	cmd = """sudo -u {USER} {SCRIPT_PATH}/tcp_endpoint.py server --server-ip {server_ip}"""
+
 if args.echo:
 	cmd += " -echo"
 cmd = cmd.format(server_ip = servers[0].IP(), **d)
@@ -296,9 +307,16 @@ server_stdout_path = "server-0_minq_stdout"
 handle = popenWrapper("server-0_minq", cmd, servers[0], stdout = server_stdout_path)
 running_commands.append(handle)
 
+## Give the server some time to initialize.
+time.sleep(10)
+
 ## Start Minq Client
 #cmd = """sudo -u {USER} MINQ_LOG={MINQ_LOG_LEVEL} /usr/local/go/bin/go run {MINQ_PATH}/bin/client/main.go -heartbeat 1 -addr {server_ip}:4433"""
-srv_cmd = """sudo -u {USER} MINQ_LOG={MINQ_LOG_LEVEL} /usr/local/go/bin/go run {MINQ_PATH}/bin/client/main.go -addr {server_ip}:4433"""
+if not args.tcp:
+	srv_cmd = """sudo -u {USER} MINQ_LOG={MINQ_LOG_LEVEL} /usr/local/go/bin/go run {MINQ_PATH}/bin/client/main.go -addr {server_ip}:4433"""
+else:
+	srv_cmd = """sudo -u {USER} {SCRIPT_PATH}/tcp_endpoint.py client --server-ip {server_ip}"""
+
 if args.heartbeat:
 	srv_cmd += " -heartbeat {}".format(args.heartbeat)
 srv_cmd = srv_cmd.format(server_ip = servers[0].IP(), **d)
@@ -312,7 +330,10 @@ elif args.traffic_gen != None:
 	client_stdin = traffic_generator.stdout
 else:
 	client_stdin = None
-handle = popenWrapper("client-0_minq", srv_cmd, clients[0], stdin=client_stdin)
+if not args.tcp:
+	handle = popenWrapper("client-0_minq", srv_cmd, clients[0], stdin=client_stdin)
+else:
+	handle = popenWrapper("client-0_tcp", srv_cmd, clients[0], stdin=client_stdin)
 running_commands.append(handle)
 client_handle = handle
 
