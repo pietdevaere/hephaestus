@@ -28,8 +28,7 @@ def save_figure(figure, filename):
 	pickle.dump(figure, open("{}.fig.pickle".format(filename), 'wb'))
 	print("Done")
 
-def forward_cursor_t
-impoo_time(cursor, time, time_series):
+def forward_cursor_to_time(cursor, time, time_series):
 	if time_series[0] >= time:
 		return -1
 
