@@ -1,4 +1,6 @@
 #!/usr/bin/python3
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.markers import *
 import sys
@@ -14,6 +16,7 @@ import os.path
 import shutil
 import scapy.all
 
+
 INVALID_SPIN_COLOR = "#ff69b450"
 PLOTS_DONE_STRING = "plots_done_1"
 
@@ -25,7 +28,10 @@ def save_figure(figure, filename):
 	print("Generating figure:", filename, "...", end=" ")
 	figure.savefig("{}.pdf".format(filename), bbox_inches='tight')
 	figure.savefig("{}.png".format(filename), bbox_inches='tight')
-	pickle.dump(figure, open("{}.fig.pickle".format(filename), 'wb'))
+	
+	if sys.version_info[0] > 2 and sys.version_info[1] > 5:
+		pickle.dump(figure, open("{}.fig.pickle".format(filename), 'wb'))
+	
 	print("Done")
 
 def forward_cursor_to_time(cursor, time, time_series):
@@ -227,8 +233,8 @@ f.set_size_inches(20, 13)
 
 axarr[0].set_title("Comparison of spin analyzers [{}]".format(dir_name))
 
-min_x_val = math.inf
-max_x_val = -math.inf
+min_x_val = float('inf')
+max_x_val = -float('inf')
 # plot the data
 for i in range(len(to_plot)):
 	analyzer_name = analyzer_names[i]
