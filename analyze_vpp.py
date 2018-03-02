@@ -23,8 +23,8 @@ PLOTS_DONE_STRING = "plots_done_1"
 
 def save_figure(figure, filename):
 	print("Generating figure:", filename, "...", end=" ")
-	figure.savefig("{}.pdf".format(filename))
-	figure.savefig("{}.png".format(filename))
+	figure.savefig("{}.pdf".format(filename), bbox_inches='tight')
+	figure.savefig("{}.png".format(filename), bbox_inches='tight')
 	pickle.dump(figure, open("{}.fig.pickle".format(filename), 'wb'))
 	print("Done")
 
@@ -104,8 +104,8 @@ with open('randID') as randID_file:
 ## get directory name
 dir_name = os.path.basename(os.getcwd())
 
-analyzer_names = ["basic", "pn", "pn_valid", "two_bit", "stat_heur", "rel_heur", "handshake"]
-plotable_analyzers = ["basic", "pn", "pn_valid", "two_bit", "stat_heur", "rel_heur"]
+analyzer_names = ["basic", "pn", "pn_valid", "valid", "pn_valid_edge", "valid_edge", 'status', "two_bit", "stat_heur", "rel_heur", "handshake"]
+plotable_analyzers = ["basic", "pn", "pn_valid", "valid", "pn_valid_edge", "valid_edge", 'status', "two_bit", "stat_heur", "rel_heur"]
 num_of_analyzers = len(analyzer_names)
 
 vpp_data = list()
@@ -360,8 +360,9 @@ x_limits = (-40, 40)
 marker_distance = 1
 
 to_plot = plotable_analyzers
-markers = ("o", "v", 's', 'p', 'h', '8', "x")
-colors = ('b', 'g', 'r', 'c', 'm', 'y', "x")
+markers = ("o", "v", 's', 'p', 'h', '8', "x", "*", "D", "1")
+#colors = ('xkcd:blue', 'xkcd:green', 'xkcd:red', 'xkcd:cyan', 'xkcd:magenta', 'xkcd:yellow', 'xkcd:light brown', 'xkcd:charcoal', 'xkcd:yellow orange')
+colors = ('tab:blue', 'tab:orange', 'tab:red', 'tab:green', 'tab:purple', 'tab:brown', 'tab:pink', 'tab:gray', 'tab:olive', 'tab:cyan')
 
 # first plot the lines
 

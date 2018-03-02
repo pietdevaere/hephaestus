@@ -269,19 +269,19 @@ def popenWrapper(prefix, command, host = None, stdin = None, stdout = None, stde
 	return handle
 
 ## Start tcpdump on client
-cmd = """tcpdump -i {interface} -n udp port 4433 -w {tcpdump_file}"""
+cmd = """tcpdump -i {interface} -n "udp port 4433 or tcp portrange 45670-45690"  -w {tcpdump_file}"""
 cmd = cmd.format(interface = "client-0-eth0", tcpdump_file = "client-0_tcpdump.pcap")
 handle = popenWrapper("client-0_tcmpdump", cmd, clients[0])
 running_commands.append(handle)
 
 ## Start tcpdump on server
-cmd = """tcpdump -i {interface} -n udp port 4433 -w {tcpdump_file}"""
+cmd = """tcpdump -i {interface} -n "udp port 4433 or tcp portrange 45670-45690" -w {tcpdump_file}"""
 cmd = cmd.format(interface = "server-0-eth0", tcpdump_file = "server-0_tcpdump.pcap")
 handle = popenWrapper("server-0_tcmpdump", cmd, servers[0])
 running_commands.append(handle)
 
 ## Start tcpdump on observer
-cmd = """tcpdump -i {interface} -n udp port 4433 -w {tcpdump_file}"""
+cmd = """tcpdump -i {interface} -n "udp port 4433 or tcp portrange 45670-45690" -w {tcpdump_file}"""
 cmd = cmd.format(interface = "switch-2-eth1", tcpdump_file = "switch-2_tcpdump.pcap")
 handle = popenWrapper("switch-2_tcpdump", cmd, LOCAL)
 running_commands.append(handle)

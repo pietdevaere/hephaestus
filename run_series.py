@@ -37,26 +37,27 @@ netem_options = (
 				 "loss gemodel 1 10 75 0.1",
 				 "loss gemodel 1 10 100 0.1",
 
-				 "loss gemodel 1 25 70 0.1",
-				 "loss gemodel 1 25 100 0",
-				 "loss gemodel 1 20 70 0.1",
-				 "loss gemodel 1 20 100 0",
-				 "loss gemodel 1 15 70 0.1",
-				 "loss gemodel 1 15 100 0",
-				 "loss gemodel 1 30 70 0.1",
-				 "loss gemodel 1 30 100 0",
-				 "loss gemodel 1 30 25 0.1",
-				 "loss gemodel 1 10 25 0.1",
-				 "loss gemodel 1 10 75 0.1",
-				 "loss gemodel 1 10 100 0.1",
+				 #"loss gemodel 1 25 70 0.1",
+				 #"loss gemodel 1 25 100 0",
+				 #"loss gemodel 1 20 70 0.1",
+				 #"loss gemodel 1 20 100 0",
+				 #"loss gemodel 1 15 70 0.1",
+				 #"loss gemodel 1 15 100 0",
+				 #"loss gemodel 1 30 70 0.1",
+				 #"loss gemodel 1 30 100 0",
+				 #"loss gemodel 1 30 25 0.1",
+				 #"loss gemodel 1 10 25 0.1",s
+				 #"loss gemodel 1 10 75 0.1",
+
+				 #"loss gemodel 1 10 100 0.1",
 
 				 "loss gemodel 0.1 10 25 0.1",
 				 "loss gemodel 0.1 10 75 0.1",
 				 "loss gemodel 0.1 10 100 0.1",
 
-				 "loss gemodel 0.01 5 25 0.1",
-				 "loss gemodel 0.01 5 75 0.1",
-				 "loss gemodel 0.01 5 100 0.1",
+				 #"loss gemodel 0.01 5 25 0.1",
+				 #"loss gemodel 0.01 5 75 0.1",
+				 #"loss gemodel 0.01 5 100 0.1",
 				 )
 
 for netem_option in netem_options:
@@ -65,7 +66,7 @@ for netem_option in netem_options:
 	print('#'*80)
 	cmd = "/home/piet/eth/msc/hephaestus/simple_for_vpp.py --run-name '{netem}' --dynamic-intf '{netem}' --file 10GiB --time 60"
 	#cmd += " --tcp"
-	cmd += " --one-direction"
+	#cmd += " --one-direction"
 	#cmd += " --no-baseline"
 	#cmd = "/home/piet/eth/msc/hephaestus/simple.py --run-name '{netem}' --dynamic-intf '{netem}' --time 30 --heartbeat 100"
 	cmd = cmd.format(netem = netem_option)
@@ -74,6 +75,6 @@ for netem_option in netem_options:
 print('#'*80)
 print('Now moving to bursty_traffic')
 print('#'*80)
-cmd = "/home/piet/eth/msc/hephaestus/simple_for_vpp.py --run-name 'bursty_traffic' --time 60 --traffic-gen '--cycles 100 --heartbeat 80' --tcp"
+cmd = "/home/piet/eth/msc/hephaestus/simple_for_vpp.py --run-name 'bursty_traffic' --time 60 --traffic-gen '--cycles 100 --heartbeat 80'"
 #cmd += " --no-baseline"
 os.system(cmd)
