@@ -31,15 +31,15 @@ parser.add_argument("--one-direction", action="store_true")
 parser.add_argument("--tcp", action="store_true")
 args = parser.parse_args()
 
-d = dict(
-	OUTPUT_BASE_PATH = "/home/piet/eth/msc/vpp-data/",
-	MINQ_PATH = "/home/piet/go/src/github.com/ekr/minq/",
-	MOKU_PATH = "/home/piet/go/src/github.com/britram/mokumokuren/",
-	SCRIPT_PATH = "/home/piet/eth/msc/hephaestus/",
-	FILES_PATH = "/home/piet/eth/msc/input_files/",
-	USER = "piet",
-	MINQ_LOG_LEVEL = "stats,congestion",
-	)
+d = dict()
+
+with open('config') as config_file:
+	for line in config_file:
+		line = line.strip().split()
+		if len(line) == 2:
+			d[line[0]] = line[1]
+
+d['MINQ_LOG_LEVEL'] = "stats,congestion"
 
 LOCAL = None
 

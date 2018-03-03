@@ -13,6 +13,13 @@ os.system("mn -c")
 
 #RUN_TYPE
 
+d = dict()
+with open('config') as config_file:
+	for line in config_file:
+		line = line.strip().split()
+		if len(line) == 2:
+			d[line[0]] = line[1]
+
 netem_options = (
 				 "delay 10ms",
 				 "delay 1ms",
@@ -64,17 +71,18 @@ for netem_option in netem_options:
 	print('#'*80)
 	print('Now moving to netem option: {}'.format(netem_option))
 	print('#'*80)
-	cmd = "/home/piet/eth/msc/hephaestus/simple_for_vpp.py --run-name '{netem}' --dynamic-intf '{netem}' --file 10GiB --time 60"
+	cmd = "{SCRIPT_PATH}/simple_for_vpp.py --run-name '{netem}' --dynamic-intf '{netem}' --file 10GiB --time 60"
 	#cmd += " --tcp"
 	#cmd += " --one-direction"
 	#cmd += " --no-baseline"
 	#cmd = "/home/piet/eth/msc/hephaestus/simple.py --run-name '{netem}' --dynamic-intf '{netem}' --time 30 --heartbeat 100"
-	cmd = cmd.format(netem = netem_option)
+	cmd = cmd.format(netem = netem_option, **d)
 	os.system(cmd)
 
 print('#'*80)
 print('Now moving to bursty_traffic')
 print('#'*80)
-cmd = "/home/piet/eth/msc/hephaestus/simple_for_vpp.py --run-name 'bursty_traffic' --time 60 --traffic-gen '--cycles 100 --heartbeat 80'"
+cmd = "{SCRIPT_PATH}/simple_for_vpp.py --run-name 'bursty_traffic' --time 60 --traffic-gen '--cycles 100 --heartbeat 80'"
 #cmd += " --no-baseline"
+cmd = cmd.format(**d)
 os.system(cmd)
