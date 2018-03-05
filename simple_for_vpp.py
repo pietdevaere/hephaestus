@@ -200,6 +200,16 @@ links.append(net.addLink(switches[2], switches[3]))   # link 3
 links.append(net.addLink(switches[3], switches[4]))   # link 4
 links.append(net.addLink(switches[4], servers[0]))    # link 5
 
+
+## TEST DISABLE OFFLOADING
+for link in links:
+	for intf in (link.intf1, link.intf2):
+	#	node = intf.node
+		cmd = "ethtool -K {} tx off sg off tso off"
+		cmd = cmd.format(intf.name)
+		intf.node.cmd(cmd)
+
+
 ## configure interfaces
 
 if args.one_direction:
@@ -359,6 +369,10 @@ def fancyWait(wait_time, steps = 50):
 
 if args.time:
 	fancyWait(args.time)
+
+	handle = popenWrapper("client-0_ip", "ip ad", clients[0])
+	running_commands.append(handle)
+
 	if args.dynamic_intf and not args.no_baseline:
 		configureNetem(dynamic_interfaces, args.dynamic_intf)
 		if not args.wait_for_client:
