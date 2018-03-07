@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+#import dill
 import matplotlib.pyplot as plt
 from matplotlib.markers import *
 import sys
@@ -15,18 +16,19 @@ import shutil
 import scapy.all
 
 INVALID_SPIN_COLOR = "#ff69b450"
-PLOTS_DONE_STRING = "plots_done_2"
+PICKLE_VALID_STRING = "pickle_valid_2"
+PLOTS_DONE_STRING = "plots_done_3"
 
 ###
 ### Helper functions
 ###
 
 def save_figure(figure, filename):
-	print("Generating figure:", filename, "...", end=" ")
+	print("\tGenerating figure: {} ...".format(filename), end="")
 	figure.savefig("{}.pdf".format(filename), bbox_inches='tight')
 	figure.savefig("{}.png".format(filename), bbox_inches='tight')
 	pickle.dump(figure, open("{}.fig.pickle".format(filename), 'wb'))
-	print("Done")
+	print(" Done")
 
 def forward_cursor_to_time(cursor, time, time_series):
 	if time_series[0] >= time:
@@ -70,6 +72,9 @@ def interpollate_rtts(target_times, source_times, source_rtts):
 
 	return target_rtts
 
+# stupid hack function used because picke can't handle lambda functions
+def return_none():
+	return None
 
 def analyze_run(path):
 
@@ -88,7 +93,7 @@ def analyze_run(path):
 
 	# Check that VPP analysis has been performed
 	if not os.path.exists("vpp_done"):
-		print("Not analyzed by VPP yet. Goodbye.")
+		print("\tNot analyzed by VPP yet. Goodbye.")
 		return False
 
 	## read randID
@@ -98,6 +103,13 @@ def analyze_run(path):
 
 	## get directory name
 	dir_name = os.path.basename(os.getcwd())
+
+	print("Analyzing {}".format(dir_name))
+	if os.path.exists(PICKLE_VALID_STRING) and os.path.exists("run.pickle"):
+		print("\tFound pickled data, will load this data.")
+		run = pickle.load(open("run.pickle", 'rb'))
+		os.chdir(return_dir)
+		return run
 
 	###
 	### read out the vpp data
@@ -112,7 +124,7 @@ def analyze_run(path):
 			if base_time == None:
 				base_time = float(row["time"])
 
-			vpp_entry = collections.defaultdict(lambda: None)
+			vpp_entry = collections.defaultdict(return_none)
 			vpp_entry["time"] = float(row["time"]) - base_time
 			vpp_entry["packet_number"] = int(row["pn"])
 			vpp_entry["host"] = row["host"].strip()
@@ -130,7 +142,7 @@ def analyze_run(path):
 	pcap_packets = scapy.all.rdpcap("switch-2_tcpdump.pcap", count=10)
 	zero_epoch = pcap_packets[0].time
 
-	print("zero_epoch: {}".format(zero_epoch))
+	#print("zero_epoch: {}".format(zero_epoch))
 
 	###
 	### Read out the client, server and ping times
@@ -260,16 +272,43 @@ def analyze_run(path):
 	run['server_rtts_TCP'] = server_rtts_TCP
 	run['server_times_TCP'] = server_times_TCP
 
-	run['ping_rtts'] = server_rtts
-	run['ping_times'] = server_times
+	run['ping_rtts'] = ping_rtts
+	run['ping_times'] = ping_times
 
 	run['handshake_rtt'] = handshake_rtt
 
 	run['analyzer_names'] = analyzer_names
 	run['plotable_analyzers'] = plotable_analyzers
 
+	print("\tPickling ...", end='')
+	pickle.dump(run, open("run.pickle", 'wb'))
+	open(PICKLE_VALID_STRING, 'w').close()
+	print(" Done")
+
 	os.chdir(return_dir)
 	return run
+
+def make_ecdf_data(run, analyzer_name, time_window = None):
+
+	if time_window == None:
+		error_data = [ x[analyzer_name + '_error'] for x in run['vpp_data']
+			if x[analyzer_name + '_error'] != None]
+
+	else:
+		error_data = [ x[analyzer_name + '_error'] for x in run['vpp_data']
+			if x[analyzer_name + '_error'] != None and x['time'] >= time_window[0] and x['time'] < time_window[1]]
+
+	error_data.sort()
+	frequency = [i/len(error_data) for i in range(len(error_data))]
+
+	return (error_data, frequency)
+
+def make_analyzer_data(run, analyzer_name):
+	y_values_analyzer = [ x[analyzer_name] for x in run['vpp_data'] ]
+	x_values_analyzer = [ x["time"] for x in run['vpp_data'] ]
+	rejected_x_values = [ x["time"] for x in run['vpp_data'] if x[analyzer_name] == None ]
+
+	return (x_values_analyzer, y_values_analyzer, rejected_x_values)
 
 def make_plots(run):
 	return_dir = os.getcwd()
@@ -401,12 +440,7 @@ def make_plots(run):
 		for i in range(len(to_plot)):
 
 			analyzer_name = to_plot[i]
-			analyzer_rtts = [ x[analyzer_name] for x in run['vpp_data'] ]
-			error_data = [ x[analyzer_name + '_error'] for x in run['vpp_data']
-					if x[analyzer_name + '_error'] != None]
-			error_data.sort()
-			frequency = [i/len(error_data) for i in range(len(error_data))]
-
+			error_data , frequency = make_ecdf_data(run, analyzer_name)
 			if markersonly:
 				linestyle = ' '
 				label = None
@@ -435,6 +469,54 @@ def make_plots(run):
 
 	open(PLOTS_DONE_STRING, 'w').close()
 
+	###
+	### Plot ECDFs for specific time interval
+	###
+
+	f = plt.figure()
+	f.set_size_inches(10, 7)
+	x_limits = (-40, 40)
+	marker_distance = 1
+
+	to_plot = run['plotable_analyzers']
+	markers = ("o", "v", 's', 'p', 'h', '8', "x", "*", "D", "1")
+	#colors = ('xkcd:blue', 'xkcd:green', 'xkcd:red', 'xkcd:cyan', 'xkcd:magenta', 'xkcd:yellow', 'xkcd:light brown', 'xkcd:charcoal', 'xkcd:yellow orange')
+	colors = ('tab:blue', 'tab:orange', 'tab:red', 'tab:green', 'tab:purple', 'tab:brown', 'tab:pink', 'tab:gray', 'tab:olive', 'tab:cyan')
+
+	# first plot the lines
+
+	for markersonly in range(1): #2):
+		for i in range(len(to_plot)):
+
+			analyzer_name = to_plot[i]
+			error_data , frequency = make_ecdf_data(run, analyzer_name, (90, 150))
+			if markersonly:
+				linestyle = ' '
+				label = None
+			else:
+				linestyle = '-'
+				label = analyzer_name
+
+			plt.plot(error_data, frequency,
+					color = colors[i],
+					linestyle = linestyle,
+					linewidth = 1,
+					marker = markers[i],
+					#markevery = (float(i), float(marker_distance * len(to_plot))),
+					markevery = (0.01*i, 0.1),
+					markeredgewidth = 1,
+					markersize = 5,
+					markeredgecolor = colors[i],
+					markerfacecolor = (0,0,0,0),
+					label = label)
+
+	plt.xlim(x_limits)
+	plt.legend()
+	plt.title(run['dir_name'])
+	plt.grid()
+	save_figure(plt.gcf(), PLOT_DIR + "/ECDF_cutout")
+
+	open(PLOTS_DONE_STRING, 'w').close()
 
 
 	os.chdir(return_dir)
