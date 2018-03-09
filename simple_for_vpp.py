@@ -31,15 +31,15 @@ parser.add_argument("--one-direction", action="store_true")
 parser.add_argument("--tcp", action="store_true")
 args = parser.parse_args()
 
-d = dict(
-	OUTPUT_BASE_PATH = "/home/piet/eth/msc/vpp-data/",
-	MINQ_PATH = "/home/piet/go/src/github.com/ekr/minq/",
-	MOKU_PATH = "/home/piet/go/src/github.com/britram/mokumokuren/",
-	SCRIPT_PATH = "/home/piet/eth/msc/hephaestus/",
-	FILES_PATH = "/home/piet/eth/msc/input_files/",
-	USER = "piet",
-	MINQ_LOG_LEVEL = "stats,congestion",
-	)
+d = dict()
+
+with open('config') as config_file:
+	for line in config_file:
+		line = line.strip().split()
+		if len(line) == 2:
+			d[line[0]] = line[1]
+
+d['MINQ_LOG_LEVEL'] = "stats,congestion"
 
 LOCAL = None
 
@@ -200,6 +200,16 @@ links.append(net.addLink(switches[2], switches[3]))   # link 3
 links.append(net.addLink(switches[3], switches[4]))   # link 4
 links.append(net.addLink(switches[4], servers[0]))    # link 5
 
+
+## TEST DISABLE OFFLOADING
+for link in links:
+	for intf in (link.intf1, link.intf2):
+	#	node = intf.node
+		cmd = "ethtool -K {} tx off sg off tso off"
+		cmd = cmd.format(intf.name)
+		intf.node.cmd(cmd)
+
+
 ## configure interfaces
 
 if args.one_direction:
@@ -359,6 +369,10 @@ def fancyWait(wait_time, steps = 50):
 
 if args.time:
 	fancyWait(args.time)
+
+	handle = popenWrapper("client-0_ip", "ip ad", clients[0])
+	running_commands.append(handle)
+
 	if args.dynamic_intf and not args.no_baseline:
 		configureNetem(dynamic_interfaces, args.dynamic_intf)
 		if not args.wait_for_client:

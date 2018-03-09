@@ -29,8 +29,9 @@ if os.path.exists(PLOT_DIR):
 	shutil.rmtree(PLOT_DIR)
 os.mkdir(PLOT_DIR)
 
+print("Reading packets ...", end='')
 pcap_packets = scapy.all.rdpcap("switch-2_tcpdump.pcap", count=-1)
-
+print(" Done")
 zero_epoch = None
 pps_buffer = collections.deque()
 pps_count = list()
@@ -38,6 +39,8 @@ pps_times = list()
 
 pre60_count = 0
 post60_count = 0
+
+buffer_size = 0
 
 for packet in pcap_packets:
 	if not zero_epoch:
@@ -51,12 +54,14 @@ for packet in pcap_packets:
 
 	# add packet to pps pps_buffer
 	pps_buffer.append(packet)
+	buffer_size += len(packet["IP"])
 
 	# remove packets that moved out of the window
 	while packet.time - pps_buffer[0].time > 1:
-		pps_buffer.popleft()
+		buffer_size -= len(pps_buffer.popleft()["IP"])
 
-	pps_count.append(len(pps_buffer))
+
+	pps_count.append(buffer_size)
 	pps_times.append(relative_packet_time)
 
 	##

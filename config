@@ -1,0 +1,6 @@
+OUTPUT_BASE_PATH /home/pietdv/data/vpp-data/
+MINQ_PATH /home/pietdv/go/src/github.com/ekr/minq/
+MOKU_PATH /home/pietdv/go/src/github.com/britram/mokumokuren/
+SCRIPT_PATH /home/pietdv/hephaestus/
+FILES_PATH /home/pietdv/data/input_files/
+USER pietdv
