@@ -5,6 +5,7 @@ import os
 import os.path
 import shutil
 import sys
+import pickle
 import collections
 import matplotlib.pyplot as plt
 
@@ -41,12 +42,21 @@ pre60_count = 0
 post60_count = 0
 
 buffer_size = 0
+last_packet_time = None
+
+inter_packet_times = list()
+
 
 for packet in pcap_packets:
 	if not zero_epoch:
 		zero_epoch = packet.time
 
 	relative_packet_time = packet.time - zero_epoch
+
+	if packet["IP"].src == "10.0.0.101":
+		if last_packet_time:
+			inter_packet_times.append((relative_packet_time - last_packet_time)*1000)
+		last_packet_time = relative_packet_time
 
 	##
 	## PACKETS PER SECOND
@@ -80,4 +90,20 @@ with open(PLOT_DIR + "count.txt", 'w') as outfile:
 
 plt.plot(pps_times, pps_count)
 plt.grid()
-plt.savefig(PLOT_DIR + "/pps")
+save_figure(plt.gcf(), PLOT_DIR + "/pps")
+
+plt.figure()
+plt.plot(inter_packet_times)
+plt.grid()
+save_figure(plt.gcf(), PLOT_DIR + "/ipt")
+
+plt.figure()
+y = [i/len(inter_packet_times) for i in range(len(inter_packet_times))]
+inter_packet_times.sort()
+plt.plot(inter_packet_times, y)
+plt.grid()
+plt.xlim([0, 1.5])
+plt.xlabel("interpacket times [ms]")
+plt.ylabel("ECDF")
+
+save_figure(plt.gcf(), PLOT_DIR + "/ipt_ecdf")

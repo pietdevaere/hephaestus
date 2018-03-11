@@ -39,7 +39,7 @@ with open('config') as config_file:
 		if len(line) == 2:
 			d[line[0]] = line[1]
 
-d['MINQ_LOG_LEVEL'] = "stats,congestion"
+d['MINQ_LOG_LEVEL'] = "stats"
 
 LOCAL = None
 

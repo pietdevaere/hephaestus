@@ -202,6 +202,8 @@ def analyze_run(path):
 		for raw_line in ping_log:
 			if raw_line.startswith("["):
 				line = raw_line.split()
+				if line[-1] != 'ms':
+					continue
 				rtt = float(line[-2][5:])
 				epoch = float(line[0][1:-1]) # cut of the brackets
 				time = epoch - zero_epoch

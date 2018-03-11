@@ -71,7 +71,7 @@ for netem_option in netem_options:
 	print('#'*80)
 	print('Now moving to netem option: {}'.format(netem_option))
 	print('#'*80)
-	cmd = "{SCRIPT_PATH}/simple_for_vpp.py --run-name '{netem}' --dynamic-intf '{netem}' --file 10GiB --time 60"
+	cmd = "{SCRIPT_PATH}/simple_for_vpp.py --run-name '{netem}' --dynamic-intf '{netem}' --file 10GiB --time 80"
 	#cmd += " --tcp"
 	#cmd += " --one-direction"
 	#cmd += " --no-baseline"
@@ -82,7 +82,7 @@ for netem_option in netem_options:
 print('#'*80)
 print('Now moving to bursty_traffic')
 print('#'*80)
-cmd = "{SCRIPT_PATH}/simple_for_vpp.py --run-name 'bursty_traffic' --time 60 --traffic-gen '--cycles 100 --heartbeat 80'"
+cmd = "{SCRIPT_PATH}/simple_for_vpp.py --run-name 'bursty_traffic' --time 80 --traffic-gen '--cycles 100 --heartbeat 80'"
 #cmd += " --no-baseline"
 cmd = cmd.format(**d)
 os.system(cmd)
