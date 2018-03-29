@@ -19,6 +19,8 @@ INVALID_SPIN_COLOR = "#ff69b450"
 PICKLE_VALID_STRING = "pickle_valid_2"
 PLOTS_DONE_STRING = "plots_done_3"
 
+CUTOUT_INTERVAL = (90, 150)
+
 ###
 ### Helper functions
 ###
@@ -76,7 +78,7 @@ def interpollate_rtts(target_times, source_times, source_rtts):
 def return_none():
 	return None
 
-def analyze_run(path):
+def analyze_run(path, do_pickle=True):
 
 	analyzer_names = ["basic", "pn", "pn_valid", "valid", "pn_valid_edge", "valid_edge", 'status', "two_bit", "stat_heur", "rel_heur", "handshake"]
 	plotable_analyzers = ["basic", "pn", "pn_valid", "valid", "pn_valid_edge", "valid_edge", 'status', "two_bit", "stat_heur", "rel_heur"]
@@ -105,7 +107,7 @@ def analyze_run(path):
 	dir_name = os.path.basename(os.getcwd())
 
 	print("Analyzing {}".format(dir_name))
-	if os.path.exists(PICKLE_VALID_STRING) and os.path.exists("run.pickle"):
+	if do_pickle and os.path.exists(PICKLE_VALID_STRING) and os.path.exists("run.pickle"):
 		print("\tFound pickled data, will load this data.")
 		run = pickle.load(open("run.pickle", 'rb'))
 		os.chdir(return_dir)
@@ -115,25 +117,38 @@ def analyze_run(path):
 	### read out the vpp data
 	###
 
+	ignore_count = 0
+
 	vpp_data = list()
 
-	with open("switch-2_vpp.csv", newline='') as csvfile:
-		reader = csv.DictReader(csvfile, skipinitialspace=True)
-		base_time = None
-		for row in reader:
-			if base_time == None:
-				base_time = float(row["time"])
+	try:
+		csvfile = open("switch-2_vpp_resync.csv", newline='')
+		print("\tUsing resynced vpp file")
+	except FileNotFoundError:
+		csvfile = open("switch-2_vpp.csv", newline='')
+		print("\tNOT using resynced vpp file")
 
-			vpp_entry = collections.defaultdict(return_none)
-			vpp_entry["time"] = float(row["time"]) - base_time
-			vpp_entry["packet_number"] = int(row["pn"])
-			vpp_entry["host"] = row["host"].strip()
+	reader = csv.DictReader(csvfile, skipinitialspace=True)
+	base_time = None
+	for row in reader:
+		if base_time == None:
+			base_time = float(row["time"])
 
-			for analyzer in analyzer_names:
-				if row[analyzer + "_new"] == '1':
-					vpp_entry[analyzer] = float(row[analyzer + "_data"]) * 1000
+		# ignore the first two entries.
+		if ignore_count < 2:
+			ignore_count += 1
+			continue
 
-			vpp_data.append(vpp_entry)
+		vpp_entry = collections.defaultdict(return_none)
+		vpp_entry["time"] = float(row["time"]) - base_time
+		vpp_entry["packet_number"] = int(row["pn"])
+		vpp_entry["host"] = row["host"].strip()
+
+		for analyzer in analyzer_names:
+			if row[analyzer + "_new"] == '1':
+				vpp_entry[analyzer] = float(row[analyzer + "_data"]) * 1000
+
+		vpp_data.append(vpp_entry)
 
 	###
 	### figure out what the zero epoch time is
@@ -145,7 +160,7 @@ def analyze_run(path):
 	#print("zero_epoch: {}".format(zero_epoch))
 
 	###
-	### Read out the client, server and ping times
+	### Read out the client, server and ping times, and count valid edges transmitted.
 	###
 
 	# The client
@@ -153,6 +168,8 @@ def analyze_run(path):
 	client_times = list()
 	client_rtts_TCP = list()
 	client_times_TCP = list()
+	client_mbytes = list()
+	client_mtimes = list()
 
 	with open("client-0_minq_stderr.txt") as client_log:
 		for raw_line in client_log:
@@ -163,6 +180,7 @@ def analyze_run(path):
 				time = epoch - zero_epoch
 				client_rtts.append(rtt)
 				client_times.append(time)
+
 			if raw_line.find("RTT_TCP:") != -1:
 				line = raw_line.split()
 				rtt = float(line[-1])
@@ -171,11 +189,21 @@ def analyze_run(path):
 				client_rtts_TCP.append(rtt)
 				client_times_TCP.append(time)
 
+			if raw_line.find("MEASUREMENT_BYTE_OUT") != -1:
+				line = raw_line.split()
+				measurement_byte = int(line[-1], 16)
+				epoch = float(line[-3])
+				time = epoch - zero_epoch
+				client_mbytes.append(measurement_byte)
+				client_mtimes.append(time)
+
 	# The server
 	server_rtts = list()
 	server_times = list()
 	server_rtts_TCP = list()
 	server_times_TCP = list()
+	server_mbytes = list()
+	server_mtimes = list()
 
 	with open("server-0_minq_stderr.txt") as server_log:
 		for raw_line in server_log:
@@ -194,6 +222,15 @@ def analyze_run(path):
 				time = epoch - zero_epoch
 				server_rtts_TCP.append(rtt)
 				server_times_TCP.append(time)
+
+			if raw_line.find("MEASUREMENT_BYTE_OUT") != -1:
+				line = raw_line.split()
+				measurement_byte = int(line[-1], 16)
+				epoch = float(line[-3])
+				time = epoch - zero_epoch
+				server_mbytes.append(measurement_byte)
+				server_mtimes.append(time)
+
 
 	# Ping
 	ping_rtts = list()
@@ -282,10 +319,16 @@ def analyze_run(path):
 	run['analyzer_names'] = analyzer_names
 	run['plotable_analyzers'] = plotable_analyzers
 
-	print("\tPickling ...", end='')
-	pickle.dump(run, open("run.pickle", 'wb'))
-	open(PICKLE_VALID_STRING, 'w').close()
-	print(" Done")
+	run['server_mtimes'] = server_mtimes
+	run['server_mbytes'] = server_mbytes
+	run['client_mtimes'] = client_mtimes
+	run['client_mbytes'] = client_mbytes
+
+	if do_pickle:
+		print("\tPickling ...", end='')
+		pickle.dump(run, open("run.pickle", 'wb'))
+		open(PICKLE_VALID_STRING, 'w').close()
+		print(" Done")
 
 	os.chdir(return_dir)
 	return run
@@ -305,9 +348,24 @@ def make_ecdf_data(run, analyzer_name, time_window = None):
 
 	return (error_data, frequency)
 
+def find_ecdf_y_value(run, analyzer_name, x_val, time_window = None):
+	error_data, frequency = make_ecdf_data(run, analyzer_name, time_window)
+
+	for i in range(len(error_data)):
+		if error_data[i] >= x_val:
+			#print("between ({},{}) and ({},{})".format(error_data[i-1], frequency[i-1], error_data[i], frequency[i]))
+			if i > 1:
+				rel_delta = (x_val - error_data[i-1]) / (error_data[i] - error_data[i-1])
+				y_val = frequency[i-1] + rel_delta * (frequency[i] - frequency[i-1])
+				return y_val
+			else:
+				return 0
+	return 1
+
+
 def make_analyzer_data(run, analyzer_name):
-	y_values_analyzer = [ x[analyzer_name] for x in run['vpp_data'] ]
-	x_values_analyzer = [ x["time"] for x in run['vpp_data'] ]
+	y_values_analyzer = [ x[analyzer_name] for x in run['vpp_data'] if x[analyzer_name] != None ]
+	x_values_analyzer = [ x["time"] for x in run['vpp_data'] if x[analyzer_name] != None ]
 	rejected_x_values = [ x["time"] for x in run['vpp_data'] if x[analyzer_name] == None ]
 
 	return (x_values_analyzer, y_values_analyzer, rejected_x_values)
@@ -524,7 +582,7 @@ def make_plots(run):
 	os.chdir(return_dir)
 
 if __name__ == '__main__':
-	run = analyze_run(sys.argv[1])
+	run = analyze_run(sys.argv[1], False)
 	if not run:
 		sys.exit(1)
 	make_plots(run)

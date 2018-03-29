@@ -18,39 +18,47 @@ class Quic(scapy.all.Packet):
 
 zero_epoch = None
 
-class Pcaptrace():
-	def __init__(self, filename, count=-1):
-		print("Reading packets ...")
-		self.packets = scapy.all.rdpcap(filename, count=count)
-		print(" Done")
-		self.cursor = 0
-		self.zero_epoch = self.packets[0].time
+print("Reading packets ...")
+packets = scapy.all.rdpcap("switch-2_tcpdump.pcap", count=-1)
+print(" Done")
 
-	def read_next_packet(self):
-		full_packet = self.packets[self.cursor]
-		self.cursor += 1
-		return Quic(full_packet["Raw"].load)
 
-	def forward_to_pn(self, pn):
-		packet = self.read_next_packet()
-		while packet.pn != pn:
-			self.read_next_packet()
-		return packet
+print("Making hashmap")
+zero_epoch = packets[0].time
 
-pcap = Pcaptrace("switch-2_tcpdump.pcap", -1)
+pn_to_time = dict()
+
+for packet in packets:
+	time = packet.time - zero_epoch
+	if packet["UDP"].sport == 4433:
+		host = "server"
+	else:
+		host = "client"
+	pn =  Quic(packet["Raw"].load).pn
+
+	pn_to_time[(pn, host)] = time
+#	print("adding pn:{}, host:{}".format(pn, host))
+
+print("Making done")
 
 csv_infile = open("switch-2_vpp.csv", 'rb')
 csv_in = csv.DictReader(csv_infile, skipinitialspace=True)
 
 csv_outfile = open("switch-2_vpp_resync.csv", 'wb')
-csv_out = csv.DictReader(csv_outfile, csv_in.fieldnames)
-
-
+csv_out = csv.DictWriter(csv_outfile, csv_in.fieldnames)
+header = dict()
+for field in csv_in.fieldnames:
+	header[field] = field
+csv_out.writerow(header)
 
 for row in csv_in:
-	pn = row['pn']
-	packet = pcap.forward_to_pn(pn)
-	time = packet.time - pcap.zero_epoch
+	pn = int(row['pn'])
+	host = row['host'].strip()
+	try:
+		time = pn_to_time[(pn, host)]
+	except KeyError:
+		print("packet not found. BAD! pn:{}, host:{}".format(pn, host))
+		sys.exit(1)
 	row['time'] = time
 	csv_out.writerow(row)
 
