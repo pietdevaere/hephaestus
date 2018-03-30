@@ -2,11 +2,21 @@
 
 import os
 import sys
-import csv
-import scapy.all
+import os.path
 
 base_path = sys.argv[1]
 os.chdir(base_path)
+
+if not os.path.isfile("switch-2_vpp.csv"):
+	print("\tNo VPP file")
+	sys.exit(11)
+if os.path.isfile("switch-2_vpp_resync.csv"):
+	sys.exit(10)
+print("\tNeeds resyncing")
+
+import csv
+import scapy.all
+
 
 class Quic(scapy.all.Packet):
 	name = "IETF QUIC"
@@ -14,16 +24,17 @@ class Quic(scapy.all.Packet):
 				    scapy.all.XLongField("conn_id", 0),
 				    scapy.all.IntField("pn", 0),
 				    scapy.all.ConditionalField(scapy.all.XIntField("version", 0), lambda pkt:pkt.type & 0x80)]
-
-
 zero_epoch = None
 
-print("Reading packets ...")
+
+
+
+print("\tReading packets ...")
 packets = scapy.all.rdpcap("switch-2_tcpdump.pcap", count=-1)
-print(" Done")
+print("\t\tDone")
 
 
-print("Making hashmap")
+print("\tMaking hashmap")
 zero_epoch = packets[0].time
 
 pn_to_time = dict()
@@ -39,7 +50,7 @@ for packet in packets:
 	pn_to_time[(pn, host)] = time
 #	print("adding pn:{}, host:{}".format(pn, host))
 
-print("Making done")
+print("\t\tone")
 
 csv_infile = open("switch-2_vpp.csv", 'rb')
 csv_in = csv.DictReader(csv_infile, skipinitialspace=True)
@@ -57,7 +68,7 @@ for row in csv_in:
 	try:
 		time = pn_to_time[(pn, host)]
 	except KeyError:
-		print("packet not found. BAD! pn:{}, host:{}".format(pn, host))
+		print("\tpacket not found. BAD! pn:{}, host:{}".format(pn, host))
 		sys.exit(1)
 	row['time'] = time
 	csv_out.writerow(row)
