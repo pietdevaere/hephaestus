@@ -703,7 +703,7 @@ runs_to_plot = (
 ## ECDF for a single burst loss rate
 ##
 
-run_for_ecdf = r_w20_loss_burst_5
+run_for_ecdf = r_w20_loss_burst_10
 
 f, ax = plt.subplots(1)
 #ax.axhline(0.5, **GRIDLINEPROPS)
@@ -850,7 +850,7 @@ ax.set_ylabel("Edges sampled")
 save_figure(f, "loss_burst_w20_effect_samples_absolute")
 
 ##############################################################################
-#### EFFECT OF BURST LOSS RATE
+#### EFFECT OF BURST LOSS RATE 1R5
 ##############################################################################
 
 r_1r5_delay_0        = analyze_vpp.analyze_run("/home/piet/eth/msc/vpp-data/for_thesis_new_vec/1523032863-NTne9_1r5_delay-0")
@@ -889,7 +889,7 @@ ax.axvline(0, **GRIDLINEPROPS)
 
 for i in range(len(analyzers_to_plot)):
 	analyzer, label = analyzers_to_plot[i]
-	x_values, y_values = analyze_vpp.make_ecdf_data(run_for_ecdf, analyzer)
+	x_values, y_values = analyze_vpp.make_ecdf_data(run_for_ecdf, analyzer, INTERVAL_OF_INTEREST)
 	ax.plot(x_values, y_values,
 			label=label,
 			color = COLORS[i],
@@ -1030,6 +1030,187 @@ ax.set_ylabel("Edges sampled")
 save_figure(f, "loss_burst_1r5_effect_samples_absolute")
 
 ##############################################################################
+#### EFFECT OF BURST LOSS RATE 0R6
+##############################################################################
+
+r_0r6_delay_0        = analyze_vpp.analyze_run("/home/piet/eth/msc/vpp-data/for_thesis_new_vec/1523166429-m5D2D_0r6_delay-0")
+r_0r6_loss_burst_5   = analyze_vpp.analyze_run("/home/piet/eth/msc/vpp-data/for_thesis_new_vec/1523165017-VEHV9_0r6_loss-gemodel-1-5")
+r_0r6_loss_burst_7   = analyze_vpp.analyze_run("/home/piet/eth/msc/vpp-data/for_thesis_new_vec/1523165193-Mpm9k_0r6_loss-gemodel-1-7")
+r_0r6_loss_burst_8   = analyze_vpp.analyze_run("/home/piet/eth/msc/vpp-data/for_thesis_new_vec/1523165370-lSD5D_0r6_loss-gemodel-1-8")
+r_0r6_loss_burst_10  = analyze_vpp.analyze_run("/home/piet/eth/msc/vpp-data/for_thesis_new_vec/1523165546-lJYMt_0r6_loss-gemodel-1-10")
+r_0r6_loss_burst_15  = analyze_vpp.analyze_run("/home/piet/eth/msc/vpp-data/for_thesis_new_vec/1523165722-DLsM6_0r6_loss-gemodel-1-15")
+r_0r6_loss_burst_20  = analyze_vpp.analyze_run("/home/piet/eth/msc/vpp-data/for_thesis_new_vec/1523165899-wWySr_0r6_loss-gemodel-1-20")
+r_0r6_loss_burst_25  = analyze_vpp.analyze_run("/home/piet/eth/msc/vpp-data/for_thesis_new_vec/1523171249-Y6BoF_0r6_loss-gemodel-1-25")
+r_0r6_loss_burst_30  = analyze_vpp.analyze_run("/home/piet/eth/msc/vpp-data/for_thesis_new_vec/1523166254-1gghL_0r6_loss-gemodel-1-30")
+
+
+runs_to_plot = (
+				(r_0r6_delay_0, math.inf),
+				(r_0r6_loss_burst_30, 30),
+			#	(r_0r6_loss_burst_25, 25),
+				(r_0r6_loss_burst_20, 20),
+				(r_0r6_loss_burst_15, 15),
+				(r_0r6_loss_burst_10, 10),
+				(r_0r6_loss_burst_8, 8),
+				(r_0r6_loss_burst_7, 7),
+				(r_0r6_loss_burst_5, 5),
+			   )
+
+##
+## ECDF for a single burst loss rate
+##
+
+run_for_ecdf = r_0r6_loss_burst_10
+
+f, ax = plt.subplots(1)
+#ax.axhline(0.5, **GRIDLINEPROPS)
+ax.axvline(0, **GRIDLINEPROPS)
+#ax.axvline(1, **GRIDLINEPROPS)
+#ax.axvline(2, **GRIDLINEPROPS)
+
+for i in range(len(analyzers_to_plot)):
+	analyzer, label = analyzers_to_plot[i]
+	x_values, y_values = analyze_vpp.make_ecdf_data(run_for_ecdf, analyzer, INTERVAL_OF_INTEREST)
+	ax.plot(x_values, y_values,
+			label=label,
+			color = COLORS[i],
+			marker = MARKERS[i][0],
+			markersize = MARKERS[i][1],
+			markeredgecolor = COLORS[i],
+			markerfacecolor = (0,0,0,0),
+			markevery = (0.1*i, 0.2))
+
+ax.legend()
+ax.set_xlim((-10, 30))
+ax.set_xlabel("Error [ms]")
+ax.set_ylabel("Cumulative fraction of data")
+ax.set_yticks((0, 0.25, 0.5, 0.75, 1))
+#ax.set_ylim((-0.01,1.01))
+#ax.grid(True)
+save_figure(f, "loss_burst_0r6_ECDF")
+
+##
+## Do analyzer error over various loss rates
+##
+
+X_VALUE_TO_CMP = 10
+GOOD_LENGTH = 100
+X_TICKS = (0, 5, 10, 15, 20)
+
+f, ax = plt.subplots(1)
+ax.axhline(1, **GRIDLINEPROPS)
+
+for i in range(len(analyzers_to_plot)):
+	analyzer, label = analyzers_to_plot[i]
+	## First build the data series
+	y_values = list()
+	x_values = list()
+	for run, burst_parameter in runs_to_plot:
+		y_val = analyze_vpp.find_ecdf_y_value(run, analyzer, abs(X_VALUE_TO_CMP), INTERVAL_OF_INTEREST) - \
+				analyze_vpp.find_ecdf_y_value(run, analyzer, -abs(X_VALUE_TO_CMP), INTERVAL_OF_INTEREST)
+		y_values.append(y_val)
+		burst_length = 1 / (burst_parameter / 100)
+		x_values.append(burst_length)
+
+	ax.plot(x_values, y_values,
+			label=label,
+			color = COLORS[i],
+			marker = MARKERS[i][0],
+			markersize = MARKERS[i][1],
+			markeredgecolor = COLORS[i],
+			markerfacecolor = (0,0,0,0))
+
+ax.legend()
+ax.set_xticks(X_TICKS)
+ax.set_xlabel("Average burst length [packets]")
+ax.set_ylabel("Fraction of samples with |error| < 10 ms")
+#ax.grid(True)
+save_figure(f, "loss_burst_0r6_effect_error")
+
+##
+## Do analyzer valid samples over various loss rates
+##
+f, ax = plt.subplots(1)
+ax.axhline(1, **GRIDLINEPROPS)
+
+for i in range(len(analyzers_to_plot)):
+	analyzer, label = analyzers_to_plot[i]
+	## First build the data series
+	y_values = list()
+	x_values = list()
+	for run, burst_parameter in runs_to_plot:
+		valid_edges = 0
+		valid_edges += count_valid_edges_endpoint(run['server_mbytes'],
+												  run['server_mtimes'],
+												  INTERVAL_OF_INTEREST)
+		valid_edges += count_valid_edges_endpoint(run['client_mbytes'],
+												  run['client_mtimes'],
+												  INTERVAL_OF_INTEREST)
+		sampled_edges = count_samples_observer(run, analyzer, INTERVAL_OF_INTEREST)
+
+		burst_length = 1 / (burst_parameter / 100)
+		#loss_rate = burst_length / (burst_length + GOOD_LENGTH)
+		#print(sampled_edges, valid_edges)
+		if sampled_edges != 0:
+			y_values.append(sampled_edges/valid_edges)
+		else:
+			y_values.append(0)
+		x_values.append(burst_length)
+		#print(burst_parameter, valid_edges)
+
+	#print()
+	ax.plot(x_values, y_values,
+			label=label,
+			color = COLORS[i],
+			marker = MARKERS[i][0],
+			markersize = MARKERS[i][1],
+			markeredgecolor = COLORS[i],
+			markerfacecolor = (0,0,0,0))
+
+ax.legend()
+ax.set_xticks(X_TICKS)
+ax.set_xlabel("Average burst length [packets]")
+ax.set_ylabel("Edges sampled / valid edges transmitted")
+#ax.grid(True)
+save_figure(f, "loss_burst_0r6_effect_samples")
+
+##
+## Do analyzer valid samples over various loss rates ABSOLUTE
+##
+f, ax = plt.subplots(1)
+ax.axhline(1, **GRIDLINEPROPS)
+
+for i in range(len(analyzers_to_plot)):
+	analyzer, label = analyzers_to_plot[i]
+	## First build the data series
+	y_values = list()
+	x_values = list()
+	for run, burst_parameter in runs_to_plot:
+		sampled_edges = count_samples_observer(run, analyzer, INTERVAL_OF_INTEREST)
+
+		burst_length = 1 / (burst_parameter / 100)
+		#loss_rate = burst_length / (burst_length + GOOD_LENGTH)
+		y_values.append(sampled_edges)
+		x_values.append(burst_length)
+		#print(burst_parameter, valid_edges)
+
+	#print()
+	ax.plot(x_values, y_values,
+			label=label,
+			color = COLORS[i],
+			marker = MARKERS[i][0],
+			markersize = MARKERS[i][1],
+			markeredgecolor = COLORS[i],
+			markerfacecolor = (0,0,0,0))
+
+ax.legend()
+ax.set_xticks(X_TICKS)
+ax.set_xlabel("Average burst length [packets]")
+ax.set_ylabel("Edges sampled")
+#ax.grid(True)
+save_figure(f, "loss_burst_0r6_effect_samples_absolute")
+
+##############################################################################
 #### EFFECT OF RANDOM LOSS
 ##############################################################################
 
@@ -1082,7 +1263,7 @@ runs_to_plot = ((r_w20_delay_0, 0),
 ## ECDF for a single burst loss rate
 ##
 
-run_for_ecdf = r_w20_loss_random_20
+run_for_ecdf = r_w20_loss_random_10
 
 f, ax = plt.subplots(1)
 #ax.axhline(0.5, **GRIDLINEPROPS)
