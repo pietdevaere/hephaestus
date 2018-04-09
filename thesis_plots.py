@@ -1178,7 +1178,7 @@ save_figure(f, "loss_burst_0r6_effect_samples")
 ## Do analyzer valid samples over various loss rates ABSOLUTE
 ##
 f, ax = plt.subplots(1)
-ax.axhline(1, **GRIDLINEPROPS)
+#ax.axhline(1, **GRIDLINEPROPS)
 
 for i in range(len(analyzers_to_plot)):
 	analyzer, label = analyzers_to_plot[i]
